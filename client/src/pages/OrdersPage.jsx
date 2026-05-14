@@ -61,6 +61,14 @@ export default function OrdersPage() {
       ? mockOrders
       : mockOrders.filter((o) => o.status === active);
 
+  useEffect(() => {
+    api
+      .get("/orders")
+      .then((res) => setOrders(res.data.orders))
+      .catch(() => setOrders([]))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <PageWrapper>
       <div

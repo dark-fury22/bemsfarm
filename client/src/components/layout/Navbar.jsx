@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
+import logoImg from "../../assets/logo.png";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -98,37 +99,15 @@ export default function Navbar() {
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: "10px",
               flexShrink: 0,
             }}
           >
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "10px",
-                background: "linear-gradient(135deg, #2E7D32, #4CAF50)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "18px",
-              }}
-            >
-              🌿
-            </div>
-            <span
-              style={{
-                fontSize: "20px",
-                fontWeight: 800,
-                color: "#1A1A2E",
-                fontFamily: "Space Grotesk, sans-serif",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Bems<span style={{ color: "#2E7D32" }}>Farm</span>
-            </span>
+            <img
+              src={logoImg}
+              alt="BemsFarm"
+              style={{ height: "40px", width: "auto", objectFit: "contain" }}
+            />
           </motion.div>
-
           {/* Desktop Nav Links — hidden on mobile */}
           {!isMobile && (
             <div style={{ display: "flex", gap: "2px" }}>
@@ -159,7 +138,6 @@ export default function Navbar() {
               ))}
             </div>
           )}
-
           {/* Search Bar */}
           {!isMobile && (
             <div
@@ -191,7 +169,6 @@ export default function Navbar() {
               />
             </div>
           )}
-
           {/* Right Icons */}
           <div
             style={{

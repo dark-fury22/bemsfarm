@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import * as THREE from "three";
 import Footer from "../components/layout/Footer";
+import logoImg from "../assets/logo.png";
 
 const COLORS = {
   primary: "#2E7D32",
@@ -334,20 +335,22 @@ export default function LandingPage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            onClick={() => navigate("/")}
             style={{
-              width: "32px",
-              height: "32px",
-              borderRadius: "8px",
-              background: "linear-gradient(135deg, #2E7D32, #4CAF50)",
+              cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              fontSize: "16px",
+              flexShrink: 0,
             }}
           >
-            🌿
-          </div>
+            <img
+              src={logoImg}
+              alt="BemsFarm"
+              style={{ height: "40px", width: "auto", objectFit: "contain" }}
+            />
+          </motion.div>
           <span
             style={{
               fontSize: "18px",
@@ -561,7 +564,7 @@ export default function LandingPage() {
                       boxShadow: "0 20px 50px rgba(245,124,0,0.5)",
                     }}
                     whileTap={{ scale: 0.97 }}
-                    onClick={() => navigate("/products")}
+                    onClick={() => navigate("/login")}
                     style={{
                       background: "linear-gradient(135deg, #F57C00, #FF9800)",
                       color: "white",
@@ -812,14 +815,14 @@ export default function LandingPage() {
                 count: "4 items",
               },
               {
-                icon: "🫙",
+                icon: "🛢️",
                 name: "Oils & Fats",
                 color: "#FBE9E7",
                 border: "#F57C00",
                 count: "2 items",
               },
               {
-                icon: "🫘",
+                icon: "🟤",
                 name: "Legumes",
                 color: "#F3E5F5",
                 border: "#7B1FA2",
@@ -969,7 +972,7 @@ export default function LandingPage() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => navigate("/deals")}
+              onClick={() => navigate("/login")}
               style={{
                 backgroundColor: "#F57C00",
                 color: "white",

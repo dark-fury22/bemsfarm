@@ -48,23 +48,20 @@ const updateProduct = async (req, res) => {
     const { id } = req.params
     const { name, price, unit, description, is_featured, image_url } = req.body
 
+    // Convert price: if it's already in naira (>100), divide by 1500; if it's fractional, use as-is
+    const priceInDB = price > 100 ? price / 1500 : price
+
     const result = await pool.query(
       `UPDATE products 
-       SET name = $1, price = $2, unit = $3, description = $4, 
-           is_featured = $5, image_url = $6
-       WHERE id = $7
-       RETURNING *`,
-      [name, price / 1500, unit, description, is_featured, image_url || '', id]
+       SET name=$1, price=$2, unit=$3, description=$4, is_featured=$5, image_url=$6
+       WHERE id=$7 RETURNING *`,
+      [name, priceInDB, unit, description || '', is_featured || false, image_url || '', parseInt(id)]
     )
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Product not found' })
-    }
-
-    res.json({ message: 'Product updated successfully', product: result.rows[0] })
-  } catch (error) {
-    console.error('Update product error:', error.message)
-    res.status(500).json({ message: 'Error updating product' })
+    if (!result.rows.length) return res.status(404).json({ message: 'Not found' })
+    res.json({ message: 'Updated', product: result.rows[0] })
+  } catch (err) {
+    console.error('Update error:', err.message)
+    res.status(500).json({ message: err.message })
   }
 }
 
@@ -72,11 +69,14 @@ const updateProduct = async (req, res) => {
 const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params
-    await pool.query('DELETE FROM products WHERE id = $1', [id])
-    res.json({ message: 'Product deleted successfully' })
-  } catch (error) {
-    console.error('Delete product error:', error.message)
-    res.status(500).json({ message: 'Error deleting product' })
+    // First delete order_items referencing this product (to avoid FK constraint)
+    await pool.query('DELETE FROM order_items WHERE product_id = $1', [parseInt(id)])
+    await pool.query('DELETE FROM cart_items WHERE product_id = $1', [parseInt(id)])
+    await pool.query('DELETE FROM products WHERE id = $1', [parseInt(id)])
+    res.json({ message: 'Product deleted' })
+  } catch (err) {
+    console.error('Delete error:', err.message)
+    res.status(500).json({ message: err.message })
   }
 }
 

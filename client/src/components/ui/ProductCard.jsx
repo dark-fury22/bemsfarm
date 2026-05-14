@@ -3,6 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useCart } from "../../context/CartContext";
 
+function getDisplayImage(product) {
+  // Priority: DB image_url → hardcoded map → fallback
+  if (product.image_url && product.image_url.startsWith("data:"))
+    return product.image_url; // base64 upload
+  if (product.image_url && product.image_url.startsWith("http"))
+    return product.image_url; // external URL
+  return getProductImage(product.name); // fallback to hardcoded map
+}
+
 export function getProductImage(name) {
   const map = {
     "Ofada Rice":
@@ -58,10 +67,10 @@ export function getProductEmoji(name) {
   const map = {
     "Ofada Rice": "🌾",
     "Long Grain Rice": "🍚",
-    "Palm Oil": "🫙",
+    "Palm Oil": "🛢️",
     "Groundnut Oil": "🥜",
-    "Black-eyed Beans": "🫘",
-    "Brown Beans": "🫘",
+    "Black-eyed Beans": "⚫",
+    "Brown Beans": "🟤",
     "Garri (White)": "🍚",
     "Garri (Yellow)": "🟡",
     "Fresh Tomatoes": "🍅",
@@ -165,7 +174,7 @@ export default function ProductCard({ product, index = 0 }) {
         }}
       >
         <motion.img
-          src={getProductImage(product.name)}
+          src={getDisplayImage(product)}
           alt={product.name}
           animate={
             added ? { scale: 1.1 } : hovered ? { scale: 1.08 } : { scale: 1 }
