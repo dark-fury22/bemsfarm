@@ -60,10 +60,10 @@ export default function AIRecommendations() {
     const map = {
       "Ofada Rice": "🌾",
       "Long Grain Rice": "🍚",
-      "Palm Oil": "🫙",
+      "Palm Oil": "🛢️",
       "Groundnut Oil": "🥜",
-      "Black-eyed Beans": "🫘",
-      "Brown Beans": "🫘",
+      "Black-eyed Beans": "⚫",
+      "Brown Beans": "🟤",
       "Garri White": "🍚",
       "Garri Yellow": "🟡",
       "Fresh Tomatoes": "🍅",

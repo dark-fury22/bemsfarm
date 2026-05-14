@@ -551,11 +551,11 @@ export default function OrderDetailPage() {
 
 function getFoodEmoji(name) {
   const map = {
-    "Palm Oil": "🫙",
+    "Palm Oil": "🛢️",
     "Garri (White)": "🍚",
     "Fresh Tomatoes": "🍅",
     "Ofada Rice": "🌾",
-    "Black-eyed Beans": "🫘",
+    "Black-eyed Beans": "⚫",
     "Groundnut Oil": "🥜",
     "Dried Crayfish": "🦐",
   };

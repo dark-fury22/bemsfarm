@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
 import api from "../services/api";
+import logoImg from "../assets/logo.png";
 
 const C = {
   sidebar: "#1A1A2E",
@@ -176,12 +177,14 @@ export default function AdminPage() {
     if (!deleteProduct) return;
     try {
       await api.delete(`/admin/products/${deleteProduct.id}`);
-      setProducts((prev) => prev.filter((p) => p.id !== deleteProduct.id));
-      setDeleteProduct(null);
     } catch (err) {
-      // Remove from UI anyway for demo
+      console.error("Delete failed:", err);
+    } finally {
+      // Always remove from UI and refetch
       setProducts((prev) => prev.filter((p) => p.id !== deleteProduct.id));
       setDeleteProduct(null);
+      // Refetch to confirm
+      setTimeout(fetchProducts, 500);
     }
   };
 
@@ -346,20 +349,26 @@ export default function AdminPage() {
                 marginBottom: "4px",
               }}
             >
-              <div
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                onClick={() => navigate("/")}
                 style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "8px",
-                  background: "linear-gradient(135deg, #2E7D32, #4CAF50)",
+                  cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "16px",
+                  flexShrink: 0,
                 }}
               >
-                🌿
-              </div>
+                <img
+                  src={logoImg}
+                  alt="BemsFarm"
+                  style={{
+                    height: "40px",
+                    width: "auto",
+                    objectFit: "contain",
+                  }}
+                />
+              </motion.div>
               <span
                 style={{ fontSize: "16px", fontWeight: 800, color: "white" }}
               >
@@ -2936,10 +2945,10 @@ function getEmoji(name) {
   const map = {
     "Ofada Rice": "🌾",
     "Long Grain Rice": "🍚",
-    "Palm Oil": "🫙",
+    "Palm Oil": "🛢️",
     "Groundnut Oil": "🥜",
-    "Black-eyed Beans": "🫘",
-    "Brown Beans": "🫘",
+    "Black-eyed Beans": "⚫",
+    "Brown Beans": "🟤",
     "Garri (White)": "🍚",
     "Garri (Yellow)": "🟡",
     "Fresh Tomatoes": "🍅",

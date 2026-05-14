@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import logoImg from "../../assets/logo.png";
 
 export default function Footer() {
   const navigate = useNavigate();
@@ -150,20 +151,22 @@ export default function Footer() {
               marginBottom: "14px",
             }}
           >
-            <div
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate("/")}
               style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "10px",
-                background: "linear-gradient(135deg, #2E7D32, #4CAF50)",
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                fontSize: "18px",
+                flexShrink: 0,
               }}
             >
-              🌿
-            </div>
+              <img
+                src={logoImg}
+                alt="BemsFarm"
+                style={{ height: "40px", width: "auto", objectFit: "contain" }}
+              />
+            </motion.div>
             <span style={{ fontSize: "18px", fontWeight: 800 }}>BemsFarm</span>
           </div>
           <p

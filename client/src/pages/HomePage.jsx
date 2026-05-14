@@ -247,7 +247,7 @@ export default function HomePage() {
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => navigate("/b.path")}
+              onClick={() => navigate("/products")}
               style={{
                 backgroundColor: "#2E7D32",
                 color: "white",
@@ -280,7 +280,7 @@ export default function HomePage() {
                 🌿 Shop by Category
               </h2>
               <button
-                onClick={() => navigate("/b.path")}
+                onClick={() => navigate("/products")}
                 style={{
                   background: "none",
                   border: "none",

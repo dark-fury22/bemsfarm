@@ -163,7 +163,7 @@ export default function ProductDetail() {
                 }}
               >
                 <img
-                  src={getProductImage(product.name)}
+                  src={product.image_url || getProductImage(product.name)}
                   alt={product.name}
                   style={{
                     width: "100%",

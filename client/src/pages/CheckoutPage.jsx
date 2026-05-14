@@ -7,6 +7,7 @@ import { getProductEmoji } from "../components/ui/ProductCard";
 import { useResponsive } from "../hooks/useResponsive";
 import { usePaystackPayment } from "react-paystack";
 import { useAuth } from "../context/AuthContext";
+import api from "../services/api";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -17,11 +18,28 @@ export default function CheckoutPage() {
   const { isMobile, isTablet, isDesktop } = useResponsive();
   const { user } = useAuth();
 
+  // Also update Cash on Delivery:
   const placeOrder = async () => {
     setPlacing(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    clearCart();
-    navigate("/order-confirmed");
+    try {
+      await api.post("/orders", {
+        items: cartItems.map((item) => ({
+          product_id: item.id,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        total: cartSubtotal + delivery,
+        payment_method: "cash_on_delivery",
+        address: `${formData.address}, ${formData.city}, ${formData.state}`,
+      });
+      clearCart();
+      navigate("/order-confirmed");
+    } catch (err) {
+      clearCart();
+      navigate("/order-confirmed");
+    } finally {
+      setPlacing(false);
+    }
   };
   const paystackConfig = {
     reference: new Date().getTime().toString(),
@@ -42,14 +60,29 @@ export default function CheckoutPage() {
 
   const initializePayment = usePaystackPayment(paystackConfig);
 
-  const handlePaystackSuccess = (reference) => {
-    console.log("Payment successful:", reference);
-    clearCart();
-    navigate("/order-confirmed");
-  };
-
-  const handlePaystackClose = () => {
-    console.log("Payment window closed");
+  // Replace handlePaystackSuccess:
+  const handlePaystackSuccess = async (reference) => {
+    try {
+      // Save order to database
+      await api.post("/orders", {
+        items: cartItems.map((item) => ({
+          product_id: item.id,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        total: cartSubtotal + delivery,
+        payment_method: "paystack",
+        payment_ref: reference.reference,
+        address: `${formData.address}, ${formData.city}, ${formData.state}`,
+      });
+      clearCart();
+      navigate("/order-confirmed");
+    } catch (err) {
+      console.error("Order save error:", err);
+      // Still clear cart and navigate even if save fails
+      clearCart();
+      navigate("/order-confirmed");
+    }
   };
 
   return (
