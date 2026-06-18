@@ -1,9 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import PageWrapper from "../components/layout/PageWrapper";
+import { useResponsive } from "../hooks/useResponsive";
 
 export default function OrderConfirmation() {
   const navigate = useNavigate();
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
   const orderId = "BF-" + Math.random().toString(36).substr(2, 8).toUpperCase();
 
   return (

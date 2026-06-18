@@ -1,431 +1,234 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import * as THREE from "three";
-import Footer from "../components/layout/Footer";
-import logoImg from "../assets/logo.png";
+import { useResponsive } from "../hooks/useResponsive";
+import logoImg from "../assets/bemsfarms_logo.png";
 
-const COLORS = {
-  primary: "#2E7D32",
-  accent: "#F57C00",
-  dark: "#1A1A2E",
-  white: "#FFFFFF",
-  gray: "#F8F9FA",
-};
+// Food photography from Unsplash (free, no attribution needed for web use)
+const HERO_IMAGES = [
+  "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1600&q=85", // Nigerian market
+  "https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=1600&q=85", // Fresh vegetables
+  "https://images.unsplash.com/photo-1464226184884-fa280b87c399?w=1600&q=85", // Farm harvest
+];
+
+const FOOD_CARDS = [
+  {
+    name: "Ofada Rice",
+    price: "₦3,750",
+    img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141430/ofada_rice_mhhzt2.jpg",
+    badge: "🌾 Farm Fresh",
+  },
+  {
+    name: "Palm Oil",
+    price: "₦4,800",
+    img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141485/palm_oil_ufbfu6.jpg",
+    badge: "🫙 Pure",
+  },
+  {
+    name: "Fresh Tomatoes",
+    price: "₦1,800",
+    img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141584/tomatoes_omiotj.jpg",
+    badge: "🍅 Seasonal",
+  },
+  {
+    name: "Dried Crayfish",
+    price: "₦7,500",
+    img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141631/crayfish_bslwl4.jpg",
+    badge: "🦐 Premium",
+  },
+];
+
+const FEATURES = [
+  {
+    icon: "🌾",
+    title: "Farm Direct",
+    desc: "Sourced directly from verified Nigerian farms",
+  },
+  {
+    icon: "⚡",
+    title: "2hr Delivery",
+    desc: "Same-day delivery across Lagos & Abuja",
+  },
+  {
+    icon: "✅",
+    title: "Quality Checked",
+    desc: "Every item inspected before it reaches you",
+  },
+  {
+    icon: "💚",
+    title: "Fair Prices",
+    desc: "Best farm prices, no market middlemen",
+  },
+];
+
+const TESTIMONIALS = [
+  {
+    name: "Amaka O.",
+    loc: "Lekki, Lagos",
+    text: "My Ofada rice arrives fresh every week. Never going back to the market!",
+    stars: 5,
+  },
+  {
+    name: "Taiwo A.",
+    loc: "Ikeja, Lagos",
+    text: "The palm oil is so pure — my egusi soup has never tasted better.",
+    stars: 5,
+  },
+  {
+    name: "Chidinma N.",
+    loc: "Abuja",
+    text: "Fast delivery, great prices. BemsFarms is my go-to for all ingredients.",
+    stars: 5,
+  },
+];
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { isMobile, width } = useResponsive();
+  const [heroIdx, setHeroIdx] = useState(0);
+  const [search, setSearch] = useState("");
+  const [scrolled, setScrolled] = useState(false);
   const canvasRef = useRef(null);
-  const frameRef = useRef(null);
-  const mouseRef = useRef({ x: 0, y: 0 });
-  const [loaded, setLoaded] = useState(false);
 
+  // Auto-rotate hero images
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const W = canvas.parentElement.offsetWidth;
-    const H = canvas.parentElement.offsetHeight;
-
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: true,
-    });
-    renderer.setSize(W, H);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 100);
-    camera.position.set(0, 1, 9);
-
-    // ── Fog ──
-    scene.fog = new THREE.FogExp2(0x0a1628, 0.04);
-
-    // ── Lighting ──
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const sun = new THREE.DirectionalLight(0xffeedd, 2.5);
-    sun.position.set(8, 12, 6);
-    sun.castShadow = true;
-    sun.shadow.mapSize.setScalar(2048);
-    scene.add(sun);
-    const green = new THREE.PointLight(0x2e7d32, 3, 20);
-    green.position.set(-6, 4, 2);
-    scene.add(green);
-    const orange = new THREE.PointLight(0xf57c00, 2, 15);
-    orange.position.set(6, 2, -2);
-    scene.add(orange);
-    const blue = new THREE.PointLight(0x1a237e, 1.5, 12);
-    blue.position.set(0, -3, 4);
-    scene.add(blue);
-
-    // ── Ground plane with reflections ──
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(40, 40),
-      new THREE.MeshStandardMaterial({
-        color: 0x0d1117,
-        roughness: 0.8,
-        metalness: 0.3,
-      }),
+    const t = setInterval(
+      () => setHeroIdx((i) => (i + 1) % HERO_IMAGES.length),
+      5000,
     );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -3;
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    // ── Grid ──
-    const grid = new THREE.GridHelper(40, 30, 0x1a3a1a, 0x0d2a0d);
-    grid.position.y = -2.98;
-    grid.material.opacity = 0.4;
-    grid.material.transparent = true;
-    scene.add(grid);
-
-    // ── Central hero orb ──
-    const orbGroup = new THREE.Group();
-    const orb = new THREE.Mesh(
-      new THREE.SphereGeometry(1.5, 128, 128),
-      new THREE.MeshStandardMaterial({
-        color: 0x2e7d32,
-        emissive: 0x1a4a1a,
-        emissiveIntensity: 0.3,
-        roughness: 0.1,
-        metalness: 0.9,
-      }),
-    );
-    orb.castShadow = true;
-    orbGroup.add(orb);
-
-    // Inner glow orb
-    const innerOrb = new THREE.Mesh(
-      new THREE.SphereGeometry(1.2, 64, 64),
-      new THREE.MeshBasicMaterial({
-        color: 0x4caf50,
-        transparent: true,
-        opacity: 0.15,
-      }),
-    );
-    orbGroup.add(innerOrb);
-
-    // Orbit rings
-    const ringColors = [0x2e7d32, 0xf57c00, 0x4caf50];
-    const rings = ringColors.map((col, i) => {
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(2.2 + i * 0.6, 0.025, 16, 200),
-        new THREE.MeshBasicMaterial({
-          color: col,
-          transparent: true,
-          opacity: 0.6 - i * 0.15,
-        }),
-      );
-      ring.rotation.x = Math.PI / 3 + i * 0.4;
-      ring.rotation.y = i * 0.8;
-      orbGroup.add(ring);
-      return ring;
-    });
-
-    orbGroup.position.set(2, 0.5, 0);
-    scene.add(orbGroup);
-
-    // ── Floating Nigerian food crystals ──
-    const crystals = [];
-    const crystalData = [
-      { color: 0xf4d03f, pos: [-4, 2, -1], size: 0.5 }, // Rice/grain gold
-      { color: 0xe74c3c, pos: [-3, -0.5, 1], size: 0.4 }, // Tomatoes red
-      { color: 0x27ae60, pos: [5, 2.5, -2], size: 0.45 }, // Vegetables green
-      { color: 0xe07b39, pos: [4, -1, 1], size: 0.55 }, // Palm oil orange
-      { color: 0x8e44ad, pos: [-5, 1, 2], size: 0.35 }, // Beans purple
-      { color: 0xf39c12, pos: [0, 3, -3], size: 0.4 }, // Groundnut yellow
-      { color: 0x1abc9c, pos: [-1, -2, 2], size: 0.3 }, // Ugu teal
-      { color: 0xe67e22, pos: [6, 1, 0], size: 0.5 }, // Garri amber
-    ];
-
-    crystalData.forEach((data, i) => {
-      const geo =
-        Math.random() > 0.5
-          ? new THREE.OctahedronGeometry(data.size, 0)
-          : new THREE.TetrahedronGeometry(data.size, 0);
-
-      const mat = new THREE.MeshStandardMaterial({
-        color: data.color,
-        emissive: data.color,
-        emissiveIntensity: 0.25,
-        roughness: 0.2,
-        metalness: 0.7,
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(...data.pos);
-      mesh.castShadow = true;
-      mesh.userData = {
-        basePos: [...data.pos],
-        speed: 0.3 + i * 0.15,
-        phase: i * 0.9,
-        rotSpeed: 0.01 + Math.random() * 0.02,
-      };
-      scene.add(mesh);
-      crystals.push(mesh);
-
-      // Crystal point light
-      const light = new THREE.PointLight(data.color, 0.8, 5);
-      light.position.set(...data.pos);
-      scene.add(light);
-      mesh.userData.light = light;
-    });
-
-    // ── Particle system ──
-    const pCount = 500;
-    const pPositions = new Float32Array(pCount * 3);
-    const pColors = new Float32Array(pCount * 3);
-    const greenC = new THREE.Color(0x4caf50);
-    const orangeC = new THREE.Color(0xf57c00);
-
-    for (let i = 0; i < pCount; i++) {
-      pPositions[i * 3] = (Math.random() - 0.5) * 30;
-      pPositions[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      pPositions[i * 3 + 2] = (Math.random() - 0.5) * 20;
-      const c = Math.random() > 0.5 ? greenC : orangeC;
-      pColors[i * 3] = c.r;
-      pColors[i * 3 + 1] = c.g;
-      pColors[i * 3 + 2] = c.b;
-    }
-    const pGeo = new THREE.BufferGeometry();
-    pGeo.setAttribute("position", new THREE.BufferAttribute(pPositions, 3));
-    pGeo.setAttribute("color", new THREE.BufferAttribute(pColors, 3));
-    const pMat = new THREE.PointsMaterial({
-      size: 0.05,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.7,
-    });
-    const particles = new THREE.Points(pGeo, pMat);
-    scene.add(particles);
-
-    // ── Connecting lines between crystals ──
-    crystalData.forEach((a, i) => {
-      if (i < crystalData.length - 1) {
-        const b = crystalData[i + 1];
-        const geo = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(...a.pos),
-          new THREE.Vector3(...b.pos),
-        ]);
-        const mat = new THREE.LineBasicMaterial({
-          color: 0x2e7d32,
-          transparent: true,
-          opacity: 0.2,
-        });
-        scene.add(new THREE.Line(geo, mat));
-      }
-    });
-
-    // ── Mouse handler ──
-    const onMouseMove = (e) => {
-      mouseRef.current.x = (e.clientX / window.innerWidth - 0.5) * 2;
-      mouseRef.current.y = (e.clientY / window.innerHeight - 0.5) * 2;
-    };
-    window.addEventListener("mousemove", onMouseMove);
-
-    // ── Resize handler ──
-    const onResize = () => {
-      const W2 = canvas.parentElement.offsetWidth;
-      const H2 = canvas.parentElement.offsetHeight;
-      camera.aspect = W2 / H2;
-      camera.updateProjectionMatrix();
-      renderer.setSize(W2, H2);
-    };
-    window.addEventListener("resize", onResize);
-
-    // ── Animation loop ──
-    let t = 0;
-    const animate = () => {
-      frameRef.current = requestAnimationFrame(animate);
-      t += 0.008;
-
-      // Orb
-      orbGroup.rotation.y += 0.005;
-      orb.rotation.y = t * 0.3;
-      orb.position.y = Math.sin(t) * 0.2;
-      rings.forEach((r, i) => {
-        r.rotation.z += 0.004 + i * 0.002;
-      });
-
-      // Crystals
-      crystals.forEach((c) => {
-        const { basePos, speed, phase, rotSpeed } = c.userData;
-        c.position.y = basePos[1] + Math.sin(t * speed + phase) * 0.4;
-        c.rotation.x += rotSpeed;
-        c.rotation.y += rotSpeed * 0.7;
-        c.userData.light.position.copy(c.position);
-      });
-
-      // Particles
-      const pos = particles.geometry.attributes.position.array;
-      for (let i = 0; i < pCount; i++) {
-        pos[i * 3 + 1] += 0.008;
-        if (pos[i * 3 + 1] > 10) pos[i * 3 + 1] = -10;
-      }
-      particles.geometry.attributes.position.needsUpdate = true;
-      particles.rotation.y += 0.0003;
-
-      // Camera parallax
-      camera.position.x += (mouseRef.current.x * 2 - camera.position.x) * 0.04;
-      camera.position.y +=
-        (-mouseRef.current.y * 1.5 + 1 - camera.position.y) * 0.04;
-      camera.lookAt(2, 0.5, 0);
-
-      // Pulsing lights
-      green.intensity = 2.5 + Math.sin(t * 2) * 0.5;
-      orange.intensity = 2 + Math.sin(t * 1.5 + 1) * 0.5;
-
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    setTimeout(() => setLoaded(true), 400);
-
-    return () => {
-      cancelAnimationFrame(frameRef.current);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("resize", onResize);
-      renderer.dispose();
-    };
+    return () => clearInterval(t);
   }, []);
 
-  const features = [
-    {
-      icon: "🌾",
-      title: "Farm Direct",
-      desc: "Sourced directly from Nigerian farmers",
-    },
-    {
-      icon: "🚚",
-      title: "Fast Delivery",
-      desc: "Same-day delivery within Lagos",
-    },
-    {
-      icon: "💯",
-      title: "Quality Assured",
-      desc: "100% fresh, quality checked products",
-    },
-    {
-      icon: "💰",
-      title: "Best Prices",
-      desc: "Fair prices direct from the source",
-    },
-  ];
+  // Scroll detection for nav style
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 60);
+    window.addEventListener("scroll", fn);
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
 
-  const stats = [
-    { value: "50+", label: "Fresh Products" },
-    { value: "10k+", label: "Happy Customers" },
-    { value: "100%", label: "Farm Direct" },
-    { value: "24/7", label: "Customer Support" },
-  ];
+  const handleSearch = (e) => {
+    if (e.key === "Enter" && search.trim()) {
+      navigate("/login");
+    }
+  };
 
   return (
-    <div style={{ backgroundColor: COLORS.white }}>
+    <div style={{ backgroundColor: "#F8F9FA", overflowX: "hidden" }}>
+      {/* ── Sticky Nav ── */}
       <nav
         style={{
-          position: "absolute",
+          position: "fixed",
           top: 0,
           left: 0,
           right: 0,
-          zIndex: 100,
-          padding: "20px 40px",
+          zIndex: 1000,
+          padding: `${scrolled ? "10px" : "16px"} ${isMobile ? "16px" : "40px"}`,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          backgroundColor: scrolled ? "rgba(255,255,255,0.95)" : "transparent",
+          backdropFilter: scrolled ? "blur(12px)" : "none",
+          boxShadow: scrolled ? "0 2px 20px rgba(0,0,0,0.1)" : "none",
+          transition: "all 0.3s ease",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            onClick={() => navigate("/")}
-            style={{
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              flexShrink: 0,
-            }}
-          >
-            <img
-              src={logoImg}
-              alt="BemsFarm"
-              style={{ height: "40px", width: "auto", objectFit: "contain" }}
-            />
-          </motion.div>
-          <span
-            style={{
-              fontSize: "18px",
-              fontWeight: 800,
-              color: "white",
-              fontFamily: "Space Grotesk, sans-serif",
-            }}
-          >
-            BemsFarm
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: "12px" }}>
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => navigate("/login")}
-            style={{
-              padding: "10px 20px",
-              borderRadius: "12px",
-              backgroundColor: "rgba(255,255,255,0.15)",
-              border: "1px solid rgba(255,255,255,0.3)",
-              color: "white",
-              fontWeight: 600,
-              cursor: "pointer",
-              fontSize: "14px",
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            Sign In
-          </motion.button>
+        <img
+          src={logoImg}
+          alt="BemsFarms"
+          style={{
+            height: isMobile ? "36px" : "44px",
+            width: "auto",
+            objectFit: "contain",
+            filter: scrolled ? "none" : "brightness(0) invert(1)",
+            mixBlendMode: scrolled ? "multiply" : "normal",
+            transition: "filter 0.3s",
+          }}
+        />
+
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          {!isMobile && (
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate("/login")}
+              style={{
+                padding: "10px 24px",
+                borderRadius: "12px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: scrolled
+                  ? "transparent"
+                  : "rgba(255,255,255,0.15)",
+                border: `1px solid ${scrolled ? "#E8EAED" : "rgba(255,255,255,0.4)"}`,
+                color: scrolled ? "#202124" : "white",
+                cursor: "pointer",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              Sign In
+            </motion.button>
+          )}
           <motion.button
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => navigate("/register")}
             style={{
-              padding: "10px 20px",
+              padding: "10px 24px",
               borderRadius: "12px",
+              fontSize: "14px",
+              fontWeight: 700,
               backgroundColor: "#F57C00",
               border: "none",
               color: "white",
-              fontWeight: 700,
               cursor: "pointer",
-              fontSize: "14px",
-              boxShadow: "0 4px 14px rgba(245,124,0,0.4)",
+              boxShadow: "0 4px 16px rgba(245,124,0,0.35)",
             }}
           >
-            Get Started
+            Get Started Free
           </motion.button>
         </div>
       </nav>
 
-      {/* ── 3D Hero Section ── */}
-      <section
+      {/* ── HERO SECTION ── */}
+      <div
         style={{
           position: "relative",
-          height: "100vh",
-          minHeight: "600px",
-          backgroundColor: "#0a1628",
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
           overflow: "hidden",
         }}
       >
-        {/* Canvas container */}
-        <div style={{ position: "absolute", inset: 0 }}>
-          <canvas ref={canvasRef} style={{ width: "100%", height: "100%" }} />
-        </div>
+        {/* Background image slideshow */}
+        {HERO_IMAGES.map((img, i) => (
+          <motion.div
+            key={img}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: i === heroIdx ? 1 : 0 }}
+            transition={{ duration: 1.2 }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage: `url(${img})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              zIndex: 0,
+            }}
+          />
+        ))}
 
         {/* Gradient overlay */}
         <div
           style={{
             position: "absolute",
             inset: 0,
+            zIndex: 1,
             background:
-              "linear-gradient(90deg, rgba(10,22,40,0.92) 0%, rgba(10,22,40,0.6) 50%, rgba(10,22,40,0.2) 100%)",
-            pointerEvents: "none",
+              "linear-gradient(135deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.3) 100%)",
           }}
         />
+
+        {/* Green tint at bottom */}
         <div
           style={{
             position: "absolute",
@@ -433,710 +236,1081 @@ export default function LandingPage() {
             left: 0,
             right: 0,
             height: "200px",
-            background: "linear-gradient(to top, #ffffff, transparent)",
-            pointerEvents: "none",
+            zIndex: 1,
+            background:
+              "linear-gradient(to top, rgba(46,125,50,0.4), transparent)",
           }}
         />
 
         {/* Hero Content */}
-        <AnimatePresence>
-          {loaded && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8 }}
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                padding: "0 5%",
-                maxWidth: "1280px",
-                margin: "0 auto",
-                left: "50%",
-                transform: "translateX(-50%)",
-              }}
-            >
-              <div style={{ maxWidth: "600px" }}>
-                {/* Badge */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    backgroundColor: "rgba(46,125,50,0.25)",
-                    backdropFilter: "blur(10px)",
-                    border: "1px solid rgba(76,175,80,0.4)",
-                    borderRadius: "50px",
-                    padding: "8px 20px",
-                    marginBottom: "24px",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      backgroundColor: "#4CAF50",
-                      display: "inline-block",
-                      animation: "pulse 2s infinite",
-                    }}
-                  />
-                  <span
-                    style={{
-                      color: "#4CAF50",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      letterSpacing: "1px",
-                    }}
-                  >
-                    🌿 NIGERIA'S #1 FARM MARKETPLACE
-                  </span>
-                </motion.div>
-
-                {/* Headline */}
-                <motion.h1
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3, type: "spring", stiffness: 80 }}
-                  style={{
-                    fontSize: "clamp(28px, 4vw, 56px)",
-                    fontWeight: 900,
-                    color: "white",
-                    lineHeight: 1.15,
-                    marginBottom: "20px",
-                    fontFamily: "Space Grotesk, sans-serif",
-                    maxWidth: "560px",
-                  }}
-                >
-                  Fresh Nigerian
-                  <br />
-                  <span
-                    style={{
-                      background:
-                        "linear-gradient(135deg, #F57C00, #FF9800, #F57C00)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                    }}
-                  >
-                    Foods Delivered
-                  </span>
-                  <br />
-                  <span
-                    style={{ color: "rgba(255,255,255,0.9)", fontSize: "75%" }}
-                  >
-                    Straight to Your Door
-                  </span>
-                </motion.h1>
-
-                {/* Description */}
-                <motion.p
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  style={{
-                    fontSize: "clamp(14px, 2vw, 17px)",
-                    color: "rgba(255,255,255,0.75)",
-                    lineHeight: 1.8,
-                    marginBottom: "36px",
-                    maxWidth: "480px",
-                  }}
-                >
-                  Rice, palm oil, garri, beans, tomatoes and more — sourced
-                  directly from Nigerian farms at the best prices. Fresh. Fast.
-                  Trusted.
-                </motion.p>
-
-                {/* CTA Buttons */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 }}
-                  style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}
-                >
-                  <motion.button
-                    whileHover={{
-                      scale: 1.05,
-                      boxShadow: "0 20px 50px rgba(245,124,0,0.5)",
-                    }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => navigate("/login")}
-                    style={{
-                      background: "linear-gradient(135deg, #F57C00, #FF9800)",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "16px",
-                      padding: "16px 32px",
-                      fontSize: "16px",
-                      fontWeight: 800,
-                      cursor: "pointer",
-                      boxShadow: "0 8px 32px rgba(245,124,0,0.4)",
-                      letterSpacing: "0.3px",
-                    }}
-                  >
-                    🛍️ Shop Now
-                  </motion.button>
-                  <motion.button
-                    whileHover={{
-                      scale: 1.05,
-                      backgroundColor: "rgba(255,255,255,0.2)",
-                    }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => navigate("/register")}
-                    style={{
-                      backgroundColor: "rgba(255,255,255,0.1)",
-                      color: "white",
-                      border: "2px solid rgba(255,255,255,0.3)",
-                      borderRadius: "16px",
-                      padding: "16px 32px",
-                      fontSize: "16px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      backdropFilter: "blur(10px)",
-                    }}
-                  >
-                    Get Started →
-                  </motion.button>
-                </motion.div>
-
-                {/* Stats */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 1 }}
-                  style={{
-                    display: "flex",
-                    gap: "32px",
-                    marginTop: "48px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {stats.map((s) => (
-                    <div key={s.label}>
-                      <p
-                        style={{
-                          fontSize: "26px",
-                          fontWeight: 900,
-                          color: "white",
-                          lineHeight: 1,
-                        }}
-                      >
-                        {s.value}
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "12px",
-                          color: "rgba(255,255,255,0.5)",
-                          marginTop: "4px",
-                          letterSpacing: "0.5px",
-                        }}
-                      >
-                        {s.label}
-                      </p>
-                    </div>
-                  ))}
-                </motion.div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Scroll indicator */}
-        <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-          style={{
-            position: "absolute",
-            bottom: "100px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "6px",
-            opacity: 0.5,
-          }}
-        >
-          <div
-            style={{
-              width: "1px",
-              height: "50px",
-              background: "linear-gradient(to bottom, white, transparent)",
-            }}
-          />
-          <p style={{ color: "white", fontSize: "10px", letterSpacing: "3px" }}>
-            SCROLL
-          </p>
-        </motion.div>
-      </section>
-
-      {/* ── Features Strip ── */}
-      <section style={{ backgroundColor: COLORS.gray, padding: "40px 24px" }}>
         <div
           style={{
+            position: "relative",
+            zIndex: 2,
             maxWidth: "1280px",
             margin: "0 auto",
+            padding: isMobile ? "100px 20px 60px" : "120px 40px 80px",
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "24px",
+            gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+            gap: "60px",
+            alignItems: "center",
           }}
         >
-          {features.map((f, i) => (
+          {/* Left: Text */}
+          <div>
+            {/* Trust badge */}
             <motion.div
-              key={f.title}
               initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
               style={{
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
-                gap: "16px",
-                backgroundColor: "white",
-                borderRadius: "16px",
-                padding: "20px",
-                boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-                border: "1px solid #E8EAED",
+                gap: "8px",
+                backgroundColor: "rgba(46,125,50,0.3)",
+                border: "1px solid rgba(76,175,80,0.5)",
+                borderRadius: "50px",
+                padding: "6px 16px",
+                marginBottom: "20px",
               }}
             >
               <div
                 style={{
-                  width: "48px",
-                  height: "48px",
-                  borderRadius: "14px",
-                  backgroundColor: "#F1F8F1",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "24px",
-                  flexShrink: 0,
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  backgroundColor: "#4CAF50",
+                  boxShadow: "0 0 0 3px rgba(76,175,80,0.3)",
+                  animation: "pulse 2s infinite",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  color: "#A5D6A7",
+                  letterSpacing: "1.5px",
                 }}
               >
-                {f.icon}
-              </div>
-              <div>
-                <p
+                🌿 NIGERIA'S #1 FARM MARKETPLACE
+              </span>
+            </motion.div>
+
+            {/* Main headline */}
+            <motion.h1
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              style={{
+                fontSize: isMobile ? "38px" : "58px",
+                fontWeight: 900,
+                lineHeight: 1.1,
+                fontFamily: "Space Grotesk, sans-serif",
+                marginBottom: "20px",
+                color: "white",
+              }}
+            >
+              Fresh Nigerian
+              <br />
+              <span
+                style={{
+                  color: "#FFB74D",
+                  textShadow: "0 0 40px rgba(255,183,77,0.4)",
+                }}
+              >
+                Foods Delivered
+              </span>
+              <br />
+              <span style={{ fontSize: isMobile ? "30px" : "46px" }}>
+                Straight to Your Door
+              </span>
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              style={{
+                fontSize: isMobile ? "15px" : "17px",
+                color: "rgba(255,255,255,0.85)",
+                lineHeight: 1.7,
+                marginBottom: "32px",
+                maxWidth: "480px",
+              }}
+            >
+              Rice, palm oil, garri, beans, tomatoes — sourced directly from
+              Nigerian farms at the best prices.
+              <strong style={{ color: "#A5D6A7" }}>
+                {" "}
+                Fresh. Fast. Trusted.
+              </strong>
+            </motion.p>
+
+            {/* Hero search bar */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              style={{
+                display: "flex",
+                gap: "0",
+                marginBottom: "32px",
+                borderRadius: "16px",
+                overflow: "hidden",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                maxWidth: "480px",
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  backgroundColor: "white",
+                  padding: "14px 18px",
+                }}
+              >
+                <span style={{ fontSize: "18px" }}>🔍</span>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={handleSearch}
+                  placeholder="Search rice, palm oil, garri..."
                   style={{
-                    fontWeight: 700,
+                    flex: 1,
+                    border: "none",
+                    outline: "none",
                     fontSize: "15px",
                     color: "#202124",
-                    marginBottom: "4px",
+                    background: "transparent",
                   }}
-                >
-                  {f.title}
-                </p>
-                <p
-                  style={{
-                    fontSize: "13px",
-                    color: "#9AA0A6",
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {f.desc}
-                </p>
+                />
               </div>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => navigate("/login")}
+                style={{
+                  padding: "14px 24px",
+                  backgroundColor: "#F57C00",
+                  border: "none",
+                  color: "white",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "15px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Shop Now
+              </motion.button>
+            </motion.div>
+
+            {/* Trust stats */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              style={{
+                display: "flex",
+                gap: isMobile ? "20px" : "32px",
+                flexWrap: "wrap",
+              }}
+            >
+              {[
+                { num: "50+", label: "Products" },
+                { num: "10k+", label: "Customers" },
+                { num: "100%", label: "Farm Direct" },
+                { num: "2hr", label: "Delivery" },
+              ].map((s) => (
+                <div key={s.label} style={{ textAlign: "center" }}>
+                  <div
+                    style={{
+                      fontSize: isMobile ? "22px" : "28px",
+                      fontWeight: 900,
+                      color: "white",
+                      fontFamily: "Space Grotesk, sans-serif",
+                    }}
+                  >
+                    {s.num}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "rgba(255,255,255,0.6)",
+                      marginTop: "2px",
+                    }}
+                  >
+                    {s.label}
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          </div>
+
+          {/* Right: Floating food cards — hide on mobile */}
+          {!isMobile && (
+            <motion.div
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3, duration: 0.8 }}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "14px",
+              }}
+            >
+              {FOOD_CARDS.map((card, i) => (
+                <motion.div
+                  key={card.name}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 + i * 0.1 }}
+                  whileHover={{
+                    y: -6,
+                    boxShadow: "0 20px 48px rgba(0,0,0,0.3)",
+                  }}
+                  onClick={() => navigate("/login")}
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.95)",
+                    borderRadius: "20px",
+                    overflow: "hidden",
+                    cursor: "pointer",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+                    backdropFilter: "blur(10px)",
+                    transition: "all 0.3s",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "120px",
+                      overflow: "hidden",
+                      position: "relative",
+                    }}
+                  >
+                    <img
+                      src={card.img}
+                      alt={card.name}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        transition: "transform 0.3s",
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "8px",
+                        left: "8px",
+                        backgroundColor: "rgba(46,125,50,0.9)",
+                        color: "white",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: "20px",
+                      }}
+                    >
+                      {card.badge}
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px 14px" }}>
+                    <p
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "13px",
+                        color: "#202124",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {card.name}
+                    </p>
+                    <p
+                      style={{
+                        fontWeight: 800,
+                        fontSize: "15px",
+                        color: "#2E7D32",
+                      }}
+                    >
+                      {card.price}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+              {/* CTA card */}
+              <motion.div
+                whileHover={{ scale: 1.03 }}
+                onClick={() => navigate("/login")}
+                style={{
+                  gridColumn: "1/-1",
+                  backgroundColor: "#F57C00",
+                  borderRadius: "16px",
+                  padding: "16px 20px",
+                  cursor: "pointer",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  boxShadow: "0 8px 24px rgba(245,124,0,0.4)",
+                }}
+              >
+                <div>
+                  <p
+                    style={{
+                      color: "white",
+                      fontWeight: 700,
+                      fontSize: "15px",
+                      marginBottom: "2px",
+                    }}
+                  >
+                    🎁 New Customer Offer
+                  </p>
+                  <p
+                    style={{
+                      color: "rgba(255,255,255,0.85)",
+                      fontSize: "12px",
+                    }}
+                  >
+                    10% off your first order — use code NEWUSER
+                  </p>
+                </div>
+                <span style={{ color: "white", fontSize: "24px" }}>→</span>
+              </motion.div>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Slideshow dots */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: "24px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            gap: "8px",
+            zIndex: 3,
+          }}
+        >
+          {HERO_IMAGES.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setHeroIdx(i)}
+              style={{
+                width: i === heroIdx ? "24px" : "8px",
+                height: "8px",
+                borderRadius: "4px",
+                border: "none",
+                backgroundColor:
+                  i === heroIdx ? "#F57C00" : "rgba(255,255,255,0.5)",
+                cursor: "pointer",
+                transition: "all 0.3s",
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* ── FEATURES STRIP ── */}
+      <div
+        style={{
+          backgroundColor: "#2E7D32",
+          padding: isMobile ? "32px 20px" : "40px 60px",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: "1200px",
+            margin: "0 auto",
+            display: "grid",
+            gridTemplateColumns: `repeat(${isMobile ? 2 : 4}, 1fr)`,
+            gap: "24px",
+          }}
+        >
+          {FEATURES.map((f, i) => (
+            <motion.div
+              key={f.title}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              style={{ textAlign: "center" }}
+            >
+              <div style={{ fontSize: "32px", marginBottom: "10px" }}>
+                {f.icon}
+              </div>
+              <h3
+                style={{
+                  color: "white",
+                  fontWeight: 700,
+                  fontSize: "15px",
+                  marginBottom: "6px",
+                }}
+              >
+                {f.title}
+              </h3>
+              <p
+                style={{
+                  color: "rgba(255,255,255,0.7)",
+                  fontSize: "13px",
+                  lineHeight: 1.5,
+                }}
+              >
+                {f.desc}
+              </p>
             </motion.div>
           ))}
         </div>
-      </section>
+      </div>
 
-      {/* ── Category Showcase ── */}
-      <section style={{ padding: "80px 24px" }}>
-        <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-end",
-              marginBottom: "40px",
-            }}
-          >
-            <div>
-              <p
-                style={{
-                  color: "#F57C00",
-                  fontWeight: 700,
-                  fontSize: "14px",
-                  letterSpacing: "2px",
-                  marginBottom: "8px",
-                }}
-              >
-                BROWSE BY CATEGORY
-              </p>
-              <h2
-                style={{
-                  fontSize: "clamp(24px, 4vw, 40px)",
-                  fontWeight: 800,
-                  color: "#202124",
-                }}
-              >
-                What are you
-                <br />
-                looking for?
-              </h2>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate("/products")}
+      {/* ── PRODUCT SHOWCASE ── */}
+      <div
+        style={{
+          padding: isMobile ? "48px 20px" : "72px 60px",
+          backgroundColor: "white",
+        }}
+      >
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: "48px" }}>
+            <span
               style={{
-                padding: "12px 24px",
-                borderRadius: "12px",
-                backgroundColor: "#2E7D32",
-                color: "white",
-                border: "none",
+                fontSize: "13px",
                 fontWeight: 700,
-                cursor: "pointer",
-                fontSize: "14px",
-                flexShrink: 0,
+                color: "#F57C00",
+                letterSpacing: "2px",
+                textTransform: "uppercase",
               }}
             >
-              View All →
-            </motion.button>
+              🌿 FARM TO DOORSTEP
+            </span>
+            <h2
+              style={{
+                fontSize: isMobile ? "28px" : "40px",
+                fontWeight: 900,
+                color: "#202124",
+                fontFamily: "Space Grotesk, sans-serif",
+                marginTop: "10px",
+                lineHeight: 1.2,
+              }}
+            >
+              Nigeria's Freshest
+              <br />
+              Farm Products
+            </h2>
+            <p
+              style={{
+                color: "#9AA0A6",
+                fontSize: "15px",
+                marginTop: "12px",
+                maxWidth: "480px",
+                margin: "12px auto 0",
+              }}
+            >
+              Everything your kitchen needs, sourced directly from trusted
+              Nigerian farms
+            </p>
           </div>
 
+          {/* Category grid */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: "16px",
+              gridTemplateColumns: `repeat(${isMobile ? 2 : 3}, 1fr)`,
+              gap: "20px",
+              marginBottom: "48px",
             }}
           >
             {[
               {
-                icon: "🌾",
                 name: "Rice & Grains",
+                img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141706/long_grain_rice_yn01lt.jpg",
+                items: "4 varieties",
                 color: "#FFF8E1",
-                border: "#F4D03F",
-                count: "4 items",
               },
               {
-                icon: "🛢️",
                 name: "Oils & Fats",
+                img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141769/Groundnut-oil_mgv43t.jpg",
+                items: "2 varieties",
                 color: "#FBE9E7",
-                border: "#F57C00",
-                count: "2 items",
               },
               {
-                icon: "🟤",
-                name: "Legumes",
-                color: "#F3E5F5",
-                border: "#7B1FA2",
-                count: "2 items",
-              },
-              {
-                icon: "🥬",
-                name: "Vegetables",
+                name: "Fresh Produce",
+                img: "https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=500&q=80",
+                items: "6 varieties",
                 color: "#E8F5E9",
-                border: "#2E7D32",
-                count: "2 items",
               },
               {
-                icon: "🍠",
-                name: "Tubers",
-                color: "#FFF3E0",
-                border: "#E65100",
-                count: "3 items",
+                name: "Legumes",
+                img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141864/brown_beans_zxbjos.jpg",
+                items: "3 varieties",
+                color: "#F3E5F5",
               },
               {
-                icon: "🌶️",
                 name: "Spices",
-                color: "#FFEBEE",
-                border: "#C62828",
-                count: "1 item",
+                img: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=500&q=80",
+                items: "2 varieties",
+                color: "#FFF3E0",
+              },
+              {
+                name: "Tubers & Roots",
+                img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141939/cocoyam_wvtyqz.png",
+                items: "3 varieties",
+                color: "#E0F2F1",
               },
             ].map((cat, i) => (
               <motion.div
                 key={cat.name}
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.08 }}
-                whileHover={{
-                  y: -6,
-                  boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
-                }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate(`/products?category=${cat.name}`)}
+                whileHover={{ y: -4 }}
+                onClick={() => navigate("/login")}
                 style={{
-                  backgroundColor: cat.color,
                   borderRadius: "20px",
-                  padding: "24px 16px",
-                  textAlign: "center",
+                  overflow: "hidden",
                   cursor: "pointer",
-                  border: `2px solid ${cat.border}20`,
-                  transition: "all 0.2s",
+                  position: "relative",
+                  height: isMobile ? "160px" : "200px",
+                  boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
                 }}
               >
-                <div style={{ fontSize: "40px", marginBottom: "12px" }}>
-                  {cat.icon}
-                </div>
-                <p
+                <img
+                  src={cat.img}
+                  alt={cat.name}
                   style={{
-                    fontWeight: 700,
-                    fontSize: "14px",
-                    color: "#202124",
-                    marginBottom: "4px",
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    transition: "transform 0.4s",
                   }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background:
+                      "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)",
+                  }}
+                />
+                <div
+                  style={{ position: "absolute", bottom: "14px", left: "16px" }}
                 >
-                  {cat.name}
-                </p>
-                <p style={{ fontSize: "12px", color: "#9AA0A6" }}>
-                  {cat.count}
-                </p>
+                  <h3
+                    style={{
+                      color: "white",
+                      fontWeight: 700,
+                      fontSize: isMobile ? "14px" : "16px",
+                      marginBottom: "2px",
+                    }}
+                  >
+                    {cat.name}
+                  </h3>
+                  <p
+                    style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px" }}
+                  >
+                    {cat.items}
+                  </p>
+                </div>
               </motion.div>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* ── Flash Sale Banner ── */}
-      <section
-        style={{
-          margin: "0 24px 80px",
-          maxWidth: "1280px",
-          marginLeft: "auto",
-          marginRight: "auto",
-        }}
-      >
-        <motion.div
-          whileHover={{ scale: 1.01 }}
-          style={{
-            borderRadius: "28px",
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #1A1A2E 0%, #2E7D32 50%, #1B5E20 100%)",
-            padding: "48px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "24px",
-            position: "relative",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: "-40px",
-              right: "200px",
-              width: "200px",
-              height: "200px",
-              borderRadius: "50%",
-              backgroundColor: "rgba(255,255,255,0.04)",
-            }}
-          />
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <span
+          <div style={{ textAlign: "center" }}>
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate("/register")}
               style={{
-                backgroundColor: "#F57C00",
+                padding: "16px 48px",
+                backgroundColor: "#2E7D32",
                 color: "white",
-                fontSize: "12px",
+                border: "none",
+                borderRadius: "16px",
+                fontSize: "16px",
                 fontWeight: 700,
-                padding: "4px 12px",
-                borderRadius: "6px",
-                letterSpacing: "1px",
-                marginBottom: "16px",
-                display: "inline-block",
+                cursor: "pointer",
+                boxShadow: "0 8px 28px rgba(46,125,50,0.35)",
               }}
             >
-              🔥 LIMITED OFFER
-            </span>
+              Shop All Products →
+            </motion.button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── HOW IT WORKS ── */}
+      <div
+        style={{
+          padding: isMobile ? "48px 20px" : "72px 60px",
+          backgroundColor: "#F8F9FA",
+        }}
+      >
+        <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: "48px" }}>
             <h2
               style={{
-                fontSize: "clamp(24px, 4vw, 44px)",
+                fontSize: isMobile ? "26px" : "36px",
                 fontWeight: 900,
-                color: "white",
-                marginBottom: "12px",
+                color: "#202124",
                 fontFamily: "Space Grotesk, sans-serif",
               }}
             >
-              Up to 40% Off
-              <br />
-              <span style={{ color: "#F57C00" }}>Fresh Farm Products</span>
+              How BemsFarms Works
             </h2>
-            <p
-              style={{
-                color: "rgba(255,255,255,0.7)",
-                marginBottom: "24px",
-                fontSize: "15px",
-              }}
-            >
-              Limited time offer — Order now and save big on your favourite
-              Nigerian foods
-            </p>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate("/login")}
-              style={{
-                backgroundColor: "#F57C00",
-                color: "white",
-                border: "none",
-                borderRadius: "14px",
-                padding: "16px 32px",
-                fontSize: "16px",
-                fontWeight: 800,
-                cursor: "pointer",
-                boxShadow: "0 8px 24px rgba(245,124,0,0.4)",
-              }}
-            >
-              Claim Offer →
-            </motion.button>
           </div>
-          <div
-            style={{
-              fontSize: "120px",
-              filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.3))",
-              position: "relative",
-              zIndex: 1,
-            }}
-          >
-            🧺
-          </div>
-        </motion.div>
-      </section>
-
-      {/* ── How It Works ── */}
-      <section style={{ backgroundColor: COLORS.gray, padding: "80px 24px" }}>
-        <div
-          style={{ maxWidth: "1280px", margin: "0 auto", textAlign: "center" }}
-        >
-          <p
-            style={{
-              color: "#F57C00",
-              fontWeight: 700,
-              fontSize: "14px",
-              letterSpacing: "2px",
-              marginBottom: "8px",
-            }}
-          >
-            HOW IT WORKS
-          </p>
-          <h2
-            style={{
-              fontSize: "clamp(24px, 4vw, 40px)",
-              fontWeight: 800,
-              color: "#202124",
-              marginBottom: "60px",
-            }}
-          >
-            Fresh food in 3 easy steps
-          </h2>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gridTemplateColumns: `repeat(${isMobile ? 1 : 3}, 1fr)`,
               gap: "32px",
+              position: "relative",
             }}
           >
             {[
               {
                 step: "01",
-                icon: "🔍",
-                title: "Browse Products",
-                desc: "Explore our wide range of fresh Nigerian foods",
+                icon: "🛒",
+                title: "Browse & Choose",
+                desc: "Pick from 50+ fresh farm products. Filter by category, price, and availability.",
               },
               {
                 step: "02",
-                icon: "🛒",
-                title: "Add to Cart",
-                desc: "Select your items and quantities easily",
+                icon: "💳",
+                title: "Pay Securely",
+                desc: "Pay with Paystack, card, bank transfer, or cash on delivery. 100% secure.",
               },
               {
                 step: "03",
-                icon: "💳",
-                title: "Checkout",
-                desc: "Pay securely with multiple payment options",
-              },
-              {
-                step: "04",
                 icon: "🚚",
-                title: "Fast Delivery",
-                desc: "Receive fresh products at your doorstep",
+                title: "Receive at Door",
+                desc: "Your fresh produce arrives within 2 hours in Lagos or next-day nationwide.",
               },
-            ].map((s, i) => (
+            ].map((item, i) => (
               <motion.div
-                key={s.step}
-                initial={{ opacity: 0, y: 30 }}
+                key={item.step}
+                initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.15 }}
-                style={{ textAlign: "center", padding: "32px 20px" }}
+                style={{
+                  textAlign: "center",
+                  padding: "32px 24px",
+                  backgroundColor: "white",
+                  borderRadius: "24px",
+                  boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+                  position: "relative",
+                }}
               >
                 <div
                   style={{
-                    position: "relative",
-                    display: "inline-block",
-                    marginBottom: "20px",
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    backgroundColor: "#F1F8F1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "28px",
+                    margin: "0 auto 16px",
                   }}
                 >
-                  <div
-                    style={{
-                      width: "72px",
-                      height: "72px",
-                      borderRadius: "20px",
-                      backgroundColor: "white",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "32px",
-                      boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-                      margin: "0 auto",
-                    }}
-                  >
-                    {s.icon}
-                  </div>
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "-8px",
-                      right: "-8px",
-                      width: "24px",
-                      height: "24px",
-                      borderRadius: "50%",
-                      backgroundColor: "#F57C00",
-                      color: "white",
-                      fontSize: "10px",
-                      fontWeight: 800,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {s.step}
-                  </div>
+                  {item.icon}
+                </div>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "20px",
+                    right: "20px",
+                    fontSize: "40px",
+                    fontWeight: 900,
+                    color: "rgba(46,125,50,0.08)",
+                    fontFamily: "Space Grotesk, sans-serif",
+                  }}
+                >
+                  {item.step}
                 </div>
                 <h3
                   style={{
                     fontSize: "18px",
                     fontWeight: 700,
                     color: "#202124",
-                    marginBottom: "8px",
+                    marginBottom: "10px",
                   }}
                 >
-                  {s.title}
+                  {item.title}
                 </h3>
                 <p
                   style={{
-                    fontSize: "14px",
                     color: "#9AA0A6",
+                    fontSize: "14px",
                     lineHeight: 1.6,
                   }}
                 >
-                  {s.desc}
+                  {item.desc}
                 </p>
               </motion.div>
             ))}
           </div>
         </div>
-      </section>
+      </div>
 
-      <Footer />
+      {/* ── TESTIMONIALS ── */}
+      <div
+        style={{
+          padding: isMobile ? "48px 20px" : "72px 60px",
+          backgroundColor: "#1B5E20",
+        }}
+      >
+        <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: "40px" }}>
+            <h2
+              style={{
+                fontSize: isMobile ? "26px" : "36px",
+                fontWeight: 900,
+                color: "white",
+                fontFamily: "Space Grotesk, sans-serif",
+                marginBottom: "10px",
+              }}
+            >
+              What Our Customers Say
+            </h2>
+            <div
+              style={{ display: "flex", justifyContent: "center", gap: "4px" }}
+            >
+              {[...Array(5)].map((_, i) => (
+                <span key={i} style={{ color: "#FFB74D", fontSize: "20px" }}>
+                  ★
+                </span>
+              ))}
+            </div>
+            <p
+              style={{
+                color: "rgba(255,255,255,0.7)",
+                marginTop: "8px",
+                fontSize: "14px",
+              }}
+            >
+              4.9/5 from 2,400+ reviews
+            </p>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${isMobile ? 1 : 3}, 1fr)`,
+              gap: "20px",
+            }}
+          >
+            {TESTIMONIALS.map((t, i) => (
+              <motion.div
+                key={t.name}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                  borderRadius: "20px",
+                  padding: "24px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                <div
+                  style={{ display: "flex", gap: "2px", marginBottom: "14px" }}
+                >
+                  {[...Array(t.stars)].map((_, j) => (
+                    <span key={j} style={{ color: "#FFB74D" }}>
+                      ★
+                    </span>
+                  ))}
+                </div>
+                <p
+                  style={{
+                    color: "rgba(255,255,255,0.9)",
+                    fontSize: "14px",
+                    lineHeight: 1.6,
+                    marginBottom: "16px",
+                    fontStyle: "italic",
+                  }}
+                >
+                  "{t.text}"
+                </p>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
+                >
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "50%",
+                      backgroundColor: "#F57C00",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "white",
+                      fontWeight: 700,
+                      fontSize: "14px",
+                    }}
+                  >
+                    {t.name[0]}
+                  </div>
+                  <div>
+                    <p
+                      style={{
+                        color: "white",
+                        fontWeight: 600,
+                        fontSize: "14px",
+                      }}
+                    >
+                      {t.name}
+                    </p>
+                    <p
+                      style={{
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {t.loc}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── DEALS BANNER ── */}
+      <div
+        style={{
+          margin: isMobile ? "0" : "0",
+          backgroundColor: "#F57C00",
+          padding: isMobile ? "40px 20px" : "56px 60px",
+        }}
+      >
+        <div
+          style={{ maxWidth: "1000px", margin: "0 auto", textAlign: "center" }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+          >
+            <div style={{ fontSize: "48px", marginBottom: "12px" }}>🎉</div>
+            <h2
+              style={{
+                fontSize: isMobile ? "26px" : "40px",
+                fontWeight: 900,
+                color: "white",
+                fontFamily: "Space Grotesk, sans-serif",
+                marginBottom: "12px",
+              }}
+            >
+              Up to 40% Off Fresh Farm Products
+            </h2>
+            <p
+              style={{
+                color: "rgba(255,255,255,0.85)",
+                fontSize: isMobile ? "14px" : "16px",
+                marginBottom: "24px",
+              }}
+            >
+              Limited time offer. New customers get 10% off their first order
+              automatically.
+            </p>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "16px",
+                backgroundColor: "rgba(255,255,255,0.15)",
+                borderRadius: "14px",
+                padding: "12px 24px",
+                marginBottom: "24px",
+              }}
+            >
+              <span
+                style={{ color: "rgba(255,255,255,0.8)", fontSize: "14px" }}
+              >
+                Use code:
+              </span>
+              <span
+                style={{
+                  color: "#FFF176",
+                  fontWeight: 900,
+                  fontSize: "20px",
+                  letterSpacing: "2px",
+                }}
+              >
+                FRESH20
+              </span>
+              <button
+                onClick={() => navigator.clipboard?.writeText("FRESH20")}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.2)",
+                  border: "none",
+                  color: "white",
+                  borderRadius: "8px",
+                  padding: "4px 12px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                Copy
+              </button>
+            </div>
+            <br />
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate("/register")}
+              style={{
+                padding: "16px 48px",
+                backgroundColor: "white",
+                color: "#F57C00",
+                border: "none",
+                borderRadius: "16px",
+                fontSize: "16px",
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: "0 8px 28px rgba(0,0,0,0.2)",
+              }}
+            >
+              Claim Your Discount →
+            </motion.button>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* ── FOOTER ── */}
+      <div
+        style={{
+          backgroundColor: "#1A1A2E",
+          color: "white",
+          padding: isMobile ? "48px 20px 32px" : "64px 60px 32px",
+        }}
+      >
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr 1fr" : "2fr 1fr 1fr 1fr",
+              gap: "40px",
+              marginBottom: "48px",
+            }}
+          >
+            <div>
+              <img
+                src={logoImg}
+                alt="BemsFarms"
+                style={{
+                  height: "40px",
+                  marginBottom: "12px",
+                  filter: "brightness(0) invert(1)",
+                }}
+              />
+              <p
+                style={{
+                  color: "rgba(255,255,255,0.6)",
+                  fontSize: "13px",
+                  lineHeight: 1.7,
+                  maxWidth: "220px",
+                }}
+              >
+                Nigeria's premier online farm-fresh food marketplace. Quality
+                produce delivered to your door.
+              </p>
+            </div>
+            {[
+              {
+                title: "Quick Links",
+                links: ["Products", "About Us", "Contact", "Deals"],
+              },
+              {
+                title: "Account",
+                links: ["Sign In", "Register", "My Orders", "Profile"],
+              },
+              {
+                title: "Support",
+                links: ["Help Centre", "Returns", "Track Order", "FAQs"],
+              },
+            ].map((col) => (
+              <div key={col.title}>
+                <h4
+                  style={{
+                    fontWeight: 700,
+                    marginBottom: "16px",
+                    fontSize: "14px",
+                  }}
+                >
+                  {col.title}
+                </h4>
+                {col.links.map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => navigate("/login")}
+                    style={{
+                      display: "block",
+                      background: "none",
+                      border: "none",
+                      color: "rgba(255,255,255,0.55)",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      marginBottom: "10px",
+                      textAlign: "left",
+                      padding: 0,
+                    }}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div
+            style={{
+              borderTop: "1px solid rgba(255,255,255,0.08)",
+              paddingTop: "24px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "12px",
+            }}
+          >
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
+              © 2026 BemsFarms. All rights reserved. Made with 🌿 in Nigeria
+            </p>
+            <div style={{ display: "flex", gap: "8px" }}>
+              {["📘", "𝕏", "📸", "💼"].map((icon, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "8px",
+                    backgroundColor: "rgba(255,255,255,0.08)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {icon}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(76,175,80,0.3); }
+          50% { box-shadow: 0 0 0 6px rgba(76,175,80,0.1); }
+        }
+      `}</style>
     </div>
   );
 }

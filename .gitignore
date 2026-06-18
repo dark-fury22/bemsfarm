@@ -1,18 +1,17 @@
 # Dependencies
 node_modules/
-client/node_modules/
-server/node_modules/
 
-# Environment files (NEVER commit these)
+# Environment secrets — NEVER commit these
 .env
-server/.env
-client/.env
+.env.local
+.env.*.local
 
 # Build output
-client/dist/
-server/dist/
+dist/
+build/
+.vite/
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 

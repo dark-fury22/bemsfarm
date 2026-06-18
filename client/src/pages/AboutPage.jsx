@@ -2,9 +2,11 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import PageWrapper from "../components/layout/PageWrapper";
 import { useResponsive } from "../hooks/useResponsive";
+
 export default function AboutPage() {
   const navigate = useNavigate();
-  const { isMobile } = useResponsive();
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
 
   // Replace the team array with this structure:
   const team = [
@@ -45,10 +47,10 @@ export default function AboutPage() {
   ];
 
   const stats = [
-    { value: "10k+", label: "Happy Customers" },
-    { value: "50+", label: "Farm Partners" },
-    { value: "12+", label: "Food Categories" },
-    { value: "99%", label: "Satisfaction Rate" },
+    { value: '10k+', label: 'Happy Customers', icon: '👥', color: '#D8F3DC' },
+  { value: '50+',  label: 'Farm Partners',   icon: '🌾', color: '#FEF3C7' },
+  { value: '12+',  label: 'Food Categories', icon: '🥬', color: '#E0F2FE' },
+  { value: '99%',  label: 'Satisfaction',    icon: '⭐', color: '#FDE8D8' },
   ];
 
   return (
@@ -214,39 +216,27 @@ export default function AboutPage() {
           }}
         >
           {stats.map((s, i) => (
-            <motion.div
-              key={s.label}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              style={{
-                textAlign: "center",
-                backgroundColor: "white",
-                borderRadius: "20px",
-                padding: "32px 20px",
-                border: "1px solid #E8EAED",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "40px",
-                  fontWeight: 900,
-                  color: "#2E7D32",
-                  fontFamily: "Space Grotesk, sans-serif",
-                  marginBottom: "8px",
-                }}
-              >
-                {s.value}
-              </p>
-              <p
-                style={{ fontSize: "14px", color: "#9AA0A6", fontWeight: 500 }}
-              >
-                {s.label}
-              </p>
-            </motion.div>
-          ))}
+  <motion.div key={s.label}
+    initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+    style={{ textAlign: 'center', backgroundColor: 'white', borderRadius: '24px',
+      padding: '32px 20px', border: '1px solid #F3F4F6',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+    <div style={{ width: '56px', height: '56px', borderRadius: '16px', backgroundColor: s.color,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px',
+      margin: '0 auto 16px' }}>
+      {s.icon}
+    </div>
+    <p style={{ fontFamily: 'Syne, sans-serif', fontSize: '36px', fontWeight: 900,
+      color: '#1B4332', marginBottom: '6px' }}>
+      {s.value}
+    </p>
+    <p style={{ fontSize: '13px', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase',
+      letterSpacing: '0.5px' }}>
+      {s.label}
+    </p>
+  </motion.div>
+))}
         </div>
 
         {/* Team */}

@@ -9,10 +9,13 @@ import ProductCard, {
   getProductImage,
 } from "../components/ui/ProductCard";
 import api from "../services/api";
+import { useResponsive } from "../hooks/useResponsive";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
   const { addToCart } = useCart();
   const [product, setProduct] = useState(null);
   const [related, setRelated] = useState([]);
@@ -295,6 +298,151 @@ export default function ProductDetail() {
               </span>
             </p>
 
+            {/* Stock Status Badge */}
+            <div style={{ marginBottom: "16px" }}>
+              {product.stock === 0 ? (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    backgroundColor: "#FEE2E2",
+                    borderRadius: "50px",
+                    padding: "6px 14px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor: "#EF4444",
+                    }}
+                  />
+                  <span
+                    style={{
+                      color: "#DC2626",
+                      fontWeight: 700,
+                      fontSize: "13px",
+                    }}
+                  >
+                    Out of Stock
+                  </span>
+                </div>
+              ) : product.stock !== null && product.stock <= 10 ? (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    backgroundColor: "#FEF3C7",
+                    borderRadius: "50px",
+                    padding: "6px 14px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor: "#F59E0B",
+                      animation: "pulse 1.5s infinite",
+                    }}
+                  />
+                  <span
+                    style={{
+                      color: "#92400E",
+                      fontWeight: 700,
+                      fontSize: "13px",
+                    }}
+                  >
+                    ⚡ Only {product.stock} left!
+                  </span>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    backgroundColor: "#D1FAE5",
+                    borderRadius: "50px",
+                    padding: "6px 14px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor: "#10B981",
+                    }}
+                  />
+                  <span
+                    style={{
+                      color: "#065F46",
+                      fontWeight: 700,
+                      fontSize: "13px",
+                    }}
+                  >
+                    In Stock
+                    {product.stock ? ` (${product.stock} available)` : ""}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Stock bar */}
+            {product.stock !== null &&
+              product.stock > 0 &&
+              product.stock <= 50 && (
+                <div style={{ marginBottom: "20px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
+                      Stock level
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: product.stock <= 10 ? "#EF4444" : "#F59E0B",
+                      }}
+                    >
+                      {product.stock} remaining
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      height: "6px",
+                      backgroundColor: "#F3F4F6",
+                      borderRadius: "3px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${Math.min(100, (product.stock / 50) * 100)}%`,
+                        backgroundColor:
+                          product.stock <= 10
+                            ? "#EF4444"
+                            : product.stock <= 25
+                              ? "#F59E0B"
+                              : "#10B981",
+                        borderRadius: "3px",
+                        transition: "width 0.5s ease",
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
             <p
               style={{
                 color: "#5F6368",
@@ -371,24 +519,32 @@ export default function ProductDetail() {
                 </motion.button>
               </div>
               <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={handleAdd}
+                disabled={product.stock === 0}
                 style={{
                   flex: 1,
-                  backgroundColor: added ? "#2E7D32" : "#F57C00",
+                  backgroundColor:
+                    product.stock === 0
+                      ? "#9AA0A6"
+                      : added
+                        ? "#2E7D32"
+                        : "#F57C00",
+                  cursor: product.stock === 0 ? "not-allowed" : "pointer",
+                  opacity: product.stock === 0 ? 0.6 : 1,
                   color: "white",
                   border: "none",
                   borderRadius: "12px",
                   padding: "16px",
                   fontSize: "16px",
                   fontWeight: 800,
-                  cursor: "pointer",
                   boxShadow: "0 4px 16px rgba(245,124,0,0.35)",
                   transition: "background-color 0.2s",
                 }}
               >
-                {added ? "✓ Added to Cart!" : "Buy Now"}
+                {product.stock === 0
+                  ? "Out of Stock"
+                  : added
+                    ? "✓ Added to Cart!"
+                    : "Buy Now"}
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.9 }}

@@ -3,10 +3,13 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import PageWrapper from "../components/layout/PageWrapper";
 import ProductCard from "../components/ui/ProductCard";
+import { useResponsive } from "../hooks/useResponsive";
 import api from "../services/api";
 
 export default function DealsPage() {
   const navigate = useNavigate();
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState({

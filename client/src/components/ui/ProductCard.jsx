@@ -3,42 +3,42 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useCart } from "../../context/CartContext";
 
+/* ---------------- IMAGE HELPERS ---------------- */
+
 function getDisplayImage(product) {
-  // Priority: DB image_url → hardcoded map → fallback
-  if (product.image_url && product.image_url.startsWith("data:"))
-    return product.image_url; // base64 upload
-  if (product.image_url && product.image_url.startsWith("http"))
-    return product.image_url; // external URL
-  return getProductImage(product.name); // fallback to hardcoded map
+  if (product.image_url?.startsWith("data:")) return product.image_url;
+  if (product.image_url?.startsWith("http")) return product.image_url;
+  return getProductImage(product.name);
 }
 
 export function getProductImage(name) {
   const map = {
     "Ofada Rice":
-      "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141430/ofada_rice_mhhzt2.jpg",
     "Long Grain Rice":
-      "https://images.unsplash.com/photo-1536304929831-ee1ca9d44906?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141706/long_grain_rice_yn01lt.jpg",
     "Palm Oil":
-      "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141485/palm_oil_ufbfu6.jpg",
     "Groundnut Oil":
-      "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141769/Groundnut-oil_mgv43t.jpg",
     "Black-eyed Beans":
-      "https://images.unsplash.com/photo-1515543904379-3d757efe72e4?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780142333/black-eyed-beans_i2n8fi.jpg",
     "Brown Beans":
-      "https://images.unsplash.com/photo-1515543904379-3d757efe72e4?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141864/brown_beans_zxbjos.jpg",
     "Garri (White)":
-      "https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780142399/white_garri_zaq8i4.png",
     "Garri (Yellow)":
-      "https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780142425/yellow_garri_kxiyxr.png",
     "Fresh Tomatoes":
-      "https://images.unsplash.com/photo-1546094096-0df4bcabd337?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141584/tomatoes_omiotj.jpg",
     "Dried Crayfish":
-      "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141631/crayfish_bslwl4.jpg",
     Cocoyam:
-      "https://images.unsplash.com/photo-1617957743089-c3902b2e89cb?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141939/cocoyam_wvtyqz.png",
     "Ugu Leaves":
-      "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300&q=80",
+      "https://res.cloudinary.com/dyzkjerez/image/upload/v1780142531/ugu_zva1av.png",
   };
+
   return (
     map[name] ||
     "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300&q=80"
@@ -60,6 +60,7 @@ export function getProductBg(name) {
     Cocoyam: "#E8F5E9",
     "Ugu Leaves": "#E8F5E9",
   };
+
   return map[name] || "#F8F9FA";
 }
 
@@ -78,12 +79,16 @@ export function getProductEmoji(name) {
     Cocoyam: "🍠",
     "Ugu Leaves": "🥬",
   };
+
   return map[name] || "🛒";
 }
+
+/* ---------------- COMPONENT ---------------- */
 
 export default function ProductCard({ product, index = 0 }) {
   const navigate = useNavigate();
   const { addToCart } = useCart();
+
   const [added, setAdded] = useState(false);
   const [hovered, setHovered] = useState(false);
 
@@ -93,6 +98,9 @@ export default function ProductCard({ product, index = 0 }) {
     setAdded(true);
     setTimeout(() => setAdded(false), 800);
   };
+
+  const isOutOfStock = product.stock === 0;
+  const isLowStock = product.stock > 0 && product.stock <= 5;
 
   return (
     <motion.div
@@ -109,101 +117,101 @@ export default function ProductCard({ product, index = 0 }) {
         overflow: "hidden",
         cursor: "pointer",
         border: "1px solid #E8EAED",
-        transition: "all 0.2s",
         position: "relative",
       }}
     >
-      {/* Featured badge */}
+      {/* FEATURED */}
       {product.is_featured && (
         <div
           style={{
             position: "absolute",
-            top: "10px",
-            left: "10px",
-            zIndex: 2,
+            top: 10,
+            left: 10,
             backgroundColor: "#F57C00",
             color: "white",
             fontSize: "10px",
             fontWeight: 700,
             padding: "3px 8px",
             borderRadius: "6px",
-            letterSpacing: "0.5px",
+            zIndex: 2,
           }}
         >
           ⭐ TOP
         </div>
       )}
 
-      {/* Wishlist */}
-      <motion.button
-        whileTap={{ scale: 0.8 }}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "absolute",
-          top: "10px",
-          right: "10px",
-          zIndex: 2,
-          width: "32px",
-          height: "32px",
-          borderRadius: "50%",
-          backgroundColor: "white",
-          border: "1px solid #E8EAED",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "14px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          opacity: hovered ? 1 : 0,
-          transition: "opacity 0.2s",
-        }}
-      >
-        ♡
-      </motion.button>
+      {/* STOCK BADGES (FIXED LOCATION) */}
+      {isOutOfStock && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 5,
+          }}
+        >
+          <span
+            style={{
+              backgroundColor: "#EF4444",
+              color: "white",
+              fontWeight: 800,
+              fontSize: "13px",
+              padding: "6px 16px",
+              borderRadius: "50px",
+            }}
+          >
+            Out of Stock
+          </span>
+        </div>
+      )}
 
-      {/* Image */}
+      {isLowStock && !isOutOfStock && (
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            right: 10,
+            backgroundColor: "#F59E0B",
+            color: "white",
+            fontSize: "11px",
+            fontWeight: 700,
+            padding: "3px 10px",
+            borderRadius: "50px",
+            zIndex: 5,
+          }}
+        >
+          ⚡ Only {product.stock} left
+        </div>
+      )}
+
+      {/* IMAGE */}
       <div
         style={{
-          height: "160px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          paddingTop: "75%",
           position: "relative",
-          overflow: "hidden",
-          backgroundColor: "#f8f9fa",
+          backgroundColor: "#F8F9FA",
         }}
       >
         <motion.img
           src={getDisplayImage(product)}
           alt={product.name}
-          animate={
-            added ? { scale: 1.1 } : hovered ? { scale: 1.08 } : { scale: 1 }
-          }
-          transition={{ duration: 0.3 }}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          onError={(e) => {
-            e.target.style.display = "none";
-            e.target.nextSibling.style.display = "flex";
-          }}
-        />
-        {/* Fallback emoji */}
-        <div
           style={{
-            display: "none",
             position: "absolute",
             inset: 0,
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "64px",
-            backgroundColor: getProductBg(product.name),
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
           }}
-        >
-          {getProductEmoji(product.name)}
-        </div>
-        {/* Add to cart overlay */}
+        />
+
+        {/* ADD TO CART OVERLAY */}
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: hovered ? 1 : 0 }}
+          animate={{ opacity: hovered && !isOutOfStock ? 1 : 0 }}
+          onClick={handleAdd}
           style={{
             position: "absolute",
             bottom: 0,
@@ -211,74 +219,51 @@ export default function ProductCard({ product, index = 0 }) {
             right: 0,
             backgroundColor: "rgba(46,125,50,0.92)",
             padding: "10px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            textAlign: "center",
             cursor: "pointer",
+            zIndex: 3,
           }}
-          onClick={handleAdd}
         >
-          <span style={{ color: "white", fontSize: "13px", fontWeight: 700 }}>
+          <span style={{ color: "white", fontWeight: 700, fontSize: "13px" }}>
             {added ? "✓ Added!" : "🛒 Add to Cart"}
           </span>
         </motion.div>
       </div>
 
-      {/* Info */}
+      {/* INFO */}
       <div style={{ padding: "14px" }}>
-        <p
-          style={{
-            fontSize: "11px",
-            color: "#9AA0A6",
-            marginBottom: "4px",
-            fontWeight: 500,
-          }}
-        >
+        <p style={{ fontSize: 11, color: "#9AA0A6" }}>
           {product.category_name}
         </p>
-        <p
+
+        <h3
           style={{
+            fontSize: 13,
             fontWeight: 700,
-            fontSize: "14px",
             color: "#202124",
-            marginBottom: "2px",
-            lineHeight: 1.3,
+            minHeight: 34,
           }}
         >
           {product.name}
-        </p>
-        <p style={{ fontSize: "12px", color: "#9AA0A6", marginBottom: "10px" }}>
-          {product.unit}
-        </p>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div>
-            <p style={{ fontWeight: 800, fontSize: "16px", color: "#2E7D32" }}>
-              ₦{(product.price * 1500).toLocaleString()}
-            </p>
-          </div>
+        </h3>
+
+        <p style={{ fontSize: 12, color: "#9AA0A6" }}>{product.unit}</p>
+
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <p style={{ fontSize: 17, fontWeight: 800, color: "#2E7D32" }}>
+            ₦{(product.price * 1500).toLocaleString()}
+          </p>
+
           <motion.button
             whileTap={{ scale: 0.8 }}
             onClick={handleAdd}
             style={{
-              width: "34px",
-              height: "34px",
-              borderRadius: "10px",
+              width: 34,
+              height: 34,
+              borderRadius: 10,
               backgroundColor: added ? "#2E7D32" : "#F57C00",
-              border: "none",
               color: "white",
-              fontSize: "18px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "background-color 0.2s",
-              boxShadow: `0 4px 12px ${added ? "rgba(46,125,50,0.4)" : "rgba(245,124,0,0.4)"}`,
+              border: "none",
             }}
           >
             {added ? "✓" : "+"}

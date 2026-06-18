@@ -16,6 +16,14 @@ import AboutPage from "./pages/AboutPage";
 import ContactPage from "./pages/ContactPage";
 import DealsPage from "./pages/DealsPage";
 import AdminPage from "./pages/AdminPage";
+import ReturnsPage from "./pages/ReturnsPage";
+import RecommendationsPage from "./pages/RecommendationsPage";
+import RecipeHelperPage from "./pages/RecipeHelperPage";
+import SemanticSearchPage from "./pages/SemanticSearchPage";
+import DynamicPricingPage from "./pages/DynamicPricingPage";
+import FraudDetectionPage from "./pages/FraudDetectionPage";
+import DemandForecastingPage from "./pages/DemandForecastingPage";
+import OnboardingPage from "./pages/OnboardingPage";
 
 const P = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
 
@@ -27,6 +35,17 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/semantic-search" element={<SemanticSearchPage />} />
+        <Route path="/dynamic-pricing" element={<DynamicPricingPage />} />
+        <Route
+          path="/returns"
+          element={
+            <P>
+              <ReturnsPage />
+            </P>
+          }
+        />
 
         {/* Protected routes */}
         <Route
@@ -131,6 +150,41 @@ function App() {
             <P>
               <AdminPage />
             </P>
+          }
+        />
+
+        <Route
+          path="/recommendations"
+          element={
+            <P>
+              <RecommendationsPage />
+            </P>
+          }
+        />
+
+        <Route
+          path="/recipe-helper"
+          element={
+            <P>
+              <RecipeHelperPage />
+            </P>
+          }
+        />
+
+        <Route
+          path="/fraud-detection"
+          element={
+            <ProtectedRoute>
+              <FraudDetectionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/demand-forecasting"
+          element={
+            <ProtectedRoute>
+              <DemandForecastingPage />
+            </ProtectedRoute>
           }
         />
       </Routes>

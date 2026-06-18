@@ -19,19 +19,39 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const location = useLocation();
+  const [lockTime, setLockTime] = useState(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const from = location.state?.from || "/home";
-  const { isMobile, isTablet, isDesktop } = useResponsive();
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
 
   const handleSubmit = async () => {
     if (!form.email || !form.password)
       return setError("Please fill all fields");
+
     try {
       setLoading(true);
+
       const res = await api.post("/auth/login", form);
+      const getPostLoginRoute = () => {
+        const hasOnboarded = localStorage.getItem("bemsfarms_prefs");
+
+        return hasOnboarded ? "/home" : "/onboarding";
+      };
+
       login(res.data.user, res.data.token);
-      navigate(from);
+
+      navigate(getPostLoginRoute());
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      const status = err.response?.status;
+      const message = err.response?.data?.message;
+
+      if (status === 423) {
+        setLockTime(message);
+        setError(message);
+      } else {
+        setError(message || "Login failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -129,6 +149,23 @@ export default function LoginPage() {
           )}
 
           {/* Right — Form */}
+          {lockTime && (
+            <div
+              style={{
+                backgroundColor: "#FEF2F2",
+                border: "1px solid #FECACA",
+                borderRadius: "12px",
+                padding: "12px 16px",
+                marginBottom: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <span style={{ fontSize: "20px" }}>🔒</span>
+              <p style={{ fontSize: "13px", color: "#DC2626" }}>{lockTime}</p>
+            </div>
+          )}
           <div
             style={{
               display: "flex",
@@ -257,7 +294,7 @@ export default function LoginPage() {
                     fontWeight: 600,
                   }}
                 >
-                  Forget Password?
+                  Forgot Password?
                 </button>
               </div>
 
