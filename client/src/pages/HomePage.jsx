@@ -16,8 +16,8 @@ export default function HomePage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Most Ordered");
-  const { isMobile, isTablet, isDesktop } = useResponsive();
-  const cols = isMobile ? 1 : isTablet ? 2 : 3;
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
 
   useEffect(() => {
     Promise.all([api.get("/products"), api.get("/categories")])
@@ -31,31 +31,31 @@ export default function HomePage() {
   const tabs = ["Most Ordered", "In Season", "Fresh Deals", "Best Value"];
 
   const banners = [
-    {
-      bg: "linear-gradient(135deg, #1B5E20, #2E7D32)",
-      title: "Freshness Delivered",
-      sub: "Straight from the farm",
-      btn: "Find Out",
-      emoji: "🧺",
-      path: "/products",
-    },
-    {
-      bg: "linear-gradient(135deg, #E65100, #F57C00)",
-      title: "Skip the Store",
-      sub: "Straight to your doorstep",
-      btn: "Order Now",
-      emoji: "📦",
-      path: "/products",
-    },
-    {
-      bg: "linear-gradient(135deg, #BF360C, #E64A19)",
-      title: "Up to 40% Off",
-      sub: "Save now, thank us later",
-      btn: "Claim Offer",
-      emoji: "🎁",
-      path: "/deals",
-    },
-  ];
+  {
+    bg:    'linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)',
+    title: 'Freshness Delivered',
+    sub:   'Straight from the farm',
+    btn:   'Shop Products',
+    img:   'https://images.unsplash.com/photo-1627484142233-50b6ac56d2c8?w=200&q=80',
+    path:  '/products',
+  },
+  {
+    bg:    'linear-gradient(135deg, #92400E 0%, #F59E0B 100%)',
+    title: 'Skip the Store',
+    sub:   'Straight to your doorstep',
+    btn:   'Order Now',
+    img:   'https://images.unsplash.com/photo-1601493700631-2851bdccf291?w=200&q=80',
+    path:  '/products',
+  },
+  {
+    bg:    'linear-gradient(135deg, #7C3AED 0%, #C084FC 100%)',
+    title: 'Up to 40% Off',
+    sub:   'Save now, thank us later',
+    btn:   'Claim Offer',
+    img:   'https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=200&q=80',
+    path:  '/deals',
+  },
+];
 
   return (
     <PageWrapper>
@@ -82,126 +82,59 @@ export default function HomePage() {
           )}
 
           {/* Banners */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile
-                ? "1fr"
-                : isTablet
-                  ? "1fr 1fr"
-                  : "2fr 1fr 1fr",
-              gap: "16px",
-              marginBottom: "40px",
-            }}
-          >
-            {banners.map((b, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                whileHover={{
-                  y: -4,
-                  boxShadow: "0 16px 40px rgba(0,0,0,0.15)",
-                }}
-                style={{
-                  borderRadius: "20px",
-                  background: b.bg,
-                  padding: i === 0 ? "32px" : "24px",
-                  cursor: "pointer",
-                  position: "relative",
-                  overflow: "hidden",
-                  minHeight: i === 0 ? "200px" : "160px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                }}
-                onClick={() => navigate("/deals")}
-              >
-                <div>
-                  <p
-                    style={{
-                      color: "rgba(255,255,255,0.8)",
-                      fontSize: "12px",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    {b.title}
-                  </p>
-                  <h3
-                    style={{
-                      color: "white",
-                      fontWeight: 800,
-                      fontSize: i === 0 ? "22px" : "16px",
-                      lineHeight: 1.3,
-                      marginBottom: "16px",
-                    }}
-                  >
-                    {b.sub}
-                  </h3>
-                </div>
-                <button
-                  style={{
-                    alignSelf: "flex-start",
-                    backgroundColor: "rgba(255,255,255,0.2)",
-                    backdropFilter: "blur(10px)",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    color: "white",
-                    borderRadius: "10px",
-                    padding: "8px 16px",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  {b.btn}
-                </button>
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: "16px",
-                    right: "16px",
-                    fontSize: i === 0 ? "60px" : "40px",
-                    opacity: 0.9,
-                  }}
-                >
-                  {b.emoji}
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr 1fr', gap: '16px', marginBottom: '40px' }}>
+  {banners.map((b, i) => (
+    <motion.div key={i}
+      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+      onClick={() => navigate(b.path)}
+      style={{ background: b.bg, borderRadius: '24px', padding: '28px 24px',
+        cursor: 'pointer', position: 'relative', overflow: 'hidden', minHeight: '160px',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+      {/* Background image */}
+      <div style={{ position: 'absolute', right: '-10px', bottom: '-10px', width: '120px', height: '120px',
+        opacity: 0.2, backgroundImage: `url(${b.img})`, backgroundSize: 'cover', borderRadius: '50%' }} />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', fontWeight: 600,
+          letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>
+          {b.title}
+        </p>
+        <h3 style={{ fontFamily: 'Syne, sans-serif', color: 'white', fontWeight: 800,
+          fontSize: i === 0 ? '22px' : '18px', lineHeight: 1.2, marginBottom: '20px' }}>
+          {b.sub}
+        </h3>
+      </div>
+      <motion.button whileTap={{ scale: 0.95 }}
+        style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.2)',
+          backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)',
+          color: 'white', padding: '8px 18px', borderRadius: '50px', fontWeight: 700,
+          cursor: 'pointer', fontSize: '13px', fontFamily: 'Nunito, sans-serif',
+          position: 'relative', zIndex: 1 }}>
+        {b.btn} →
+      </motion.button>
+    </motion.div>
+  ))}
+</div>
+
 
           {/* Tabs + Products */}
-          <div
-            style={{
-              display: "flex",
-              gap: "24px",
-              overflowX: "auto",
-              marginBottom: "24px",
-            }}
-            className="hide-scrollbar"
-          >
-            {tabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  whiteSpace: "nowrap",
-                  fontSize: "15px",
-                  fontWeight: 600,
-                  paddingBottom: "8px",
-                  border: "none",
-                  background: "none",
-                  cursor: "pointer",
-                  borderBottom: `2px solid ${activeTab === tab ? "#F57C00" : "transparent"}`,
-                  color: activeTab === tab ? "#F57C00" : "#9AA0A6",
-                  transition: "all 0.2s",
-                }}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+          {/* Tab bar — replace existing with this: */}
+<div style={{ display: 'flex', gap: '4px', marginBottom: '28px',
+  borderBottom: '2px solid #F3F4F6', paddingBottom: '0' }}>
+  {['Most Ordered', 'In Season', 'Fresh Deals', 'Best Value'].map(tab => (
+    <button key={tab} onClick={() => setActiveTab(tab)}
+      style={{
+        padding: '10px 18px', border: 'none', cursor: 'pointer', fontSize: '14px',
+        fontWeight: activeTab === tab ? 700 : 500, fontFamily: 'Nunito, sans-serif',
+        backgroundColor: 'transparent',
+        color: activeTab === tab ? '#1B4332' : '#9CA3AF',
+        borderBottom: `2px solid ${activeTab === tab ? '#40916C' : 'transparent'}`,
+        marginBottom: '-2px', transition: 'all 0.2s', borderRadius: '0',
+      }}>
+      {tab}
+    </button>
+  ))}
+</div>
 
           {loading ? (
             <div

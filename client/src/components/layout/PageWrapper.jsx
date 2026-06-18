@@ -1,5 +1,6 @@
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import AIChatbot from "../AIChatbot";
 
 export default function PageWrapper({ children, noFooter = false }) {
   return (
@@ -8,7 +9,10 @@ export default function PageWrapper({ children, noFooter = false }) {
     >
       <Navbar />
       <main style={{ flex: 1 }}>{children}</main>
+
       {!noFooter && <Footer />}
+
+      <AIChatbot />
     </div>
   );
 }

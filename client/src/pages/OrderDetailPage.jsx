@@ -67,14 +67,6 @@ const statusConfig = {
   },
 };
 
-const steps = [
-  "Order Placed",
-  "Confirmed",
-  "Being Packed",
-  "Out for Delivery",
-  "Delivered",
-];
-
 export default function OrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -82,8 +74,21 @@ export default function OrderDetailPage() {
   const s = statusConfig[order.status];
   const subtotal = order.items.reduce((acc, i) => acc + i.price * i.qty, 0);
   const { addToCart } = useCart();
-  const { isMobile } = useResponsive();
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
   const [reordering, setReordering] = useState(false);
+
+  const trackingSteps = [
+    { key: "pending", label: "Order Placed", icon: "📋" },
+    { key: "confirmed", label: "Confirmed", icon: "✅" },
+    { key: "packed", label: "Being Packed", icon: "📦" },
+    { key: "delivery", label: "Out for Delivery", icon: "🚚" },
+    { key: "delivered", label: "Delivered", icon: "🎉" },
+  ];
+
+  const currentStepIndex = trackingSteps.findIndex(
+    (step) => step.key === order.status,
+  );
 
   const handleReorder = async () => {
     setReordering(true);
@@ -218,79 +223,56 @@ export default function OrderDetailPage() {
           >
             Order Tracking
           </h3>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              overflowX: "auto",
-            }}
-          >
-            {steps.map((step, i) => {
-              const done = i < s.step;
-              const current = i === s.step - 1;
+
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            {trackingSteps.map((step, i) => {
+              const done = i <= currentStepIndex;
+              const current = i === currentStepIndex;
+
               return (
-                <div
-                  key={step}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    flex: i < steps.length - 1 ? 1 : "none",
-                  }}
-                >
-                  <div
+                <div key={step.key} style={{ flex: 1, textAlign: "center" }}>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: i * 0.1 }}
                     style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "50%",
+                      margin: "0 auto",
+                      backgroundColor: done ? "#2E7D32" : "#F1F3F4",
                       display: "flex",
-                      flexDirection: "column",
                       alignItems: "center",
-                      minWidth: "80px",
+                      justifyContent: "center",
+                      fontSize: "18px",
+                      border: current ? "2px solid #4CAF50" : "none",
+                      boxShadow: current
+                        ? "0 0 0 4px rgba(76,175,80,0.2)"
+                        : "none",
                     }}
                   >
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: i * 0.1 }}
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "50%",
-                        backgroundColor:
-                          done || current ? "#2E7D32" : "#F1F3F4",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginBottom: "8px",
-                        border: current ? "3px solid #4CAF50" : "none",
-                        boxShadow: current
-                          ? "0 0 0 4px rgba(76,175,80,0.2)"
-                          : "none",
-                      }}
-                    >
-                      <span style={{ fontSize: "18px" }}>
-                        {done || current ? "✓" : "○"}
-                      </span>
-                    </motion.div>
-                    <p
-                      style={{
-                        fontSize: "11px",
-                        color: done || current ? "#2E7D32" : "#9AA0A6",
-                        fontWeight: done || current ? 700 : 400,
-                        textAlign: "center",
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {step}
-                    </p>
-                  </div>
-                  {i < steps.length - 1 && (
+                    {step.icon}
+                  </motion.div>
+
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      marginTop: "8px",
+                      fontWeight: done ? 700 : 400,
+                      color: done ? "#2E7D32" : "#9AA0A6",
+                    }}
+                  >
+                    {step.label}
+                  </p>
+
+                  {i < trackingSteps.length - 1 && (
                     <div
                       style={{
-                        flex: 1,
                         height: "3px",
-                        backgroundColor: done ? "#2E7D32" : "#E8EAED",
-                        marginBottom: "28px",
+                        backgroundColor:
+                          i < currentStepIndex ? "#2E7D32" : "#E8EAED",
+                        marginTop: "10px",
                         borderRadius: "2px",
-                        transition: "background-color 0.3s",
                       }}
                     />
                   )}

@@ -1,0 +1,103 @@
+/* client/src/styles/responsive.css */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+img, video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Hide scrollbar but keep scroll */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Touch-friendly tap targets ───────── */
+@media (max-width: 1024px) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ── Prevent text overflow everywhere ── */
+h1, h2, h3, h4, h5, h6, p, span, label {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* ── Tables scroll on small screens ──── */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Safe area for notched phones ─────── */
+.safe-padding {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Device-specific fixes ─────────────── */
+
+/* iPhone SE (320px) */
+@media screen and (max-width: 375px) {
+  html { font-size: 14px; }
+  
+  .nav-brand img { height: 32px !important; }
+  .page-padding { padding: 12px !important; }
+  .card-grid-2 { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .card-grid-3 { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+}
+
+/* iPhone 12/14, Pixel 7 (375-430px) */
+@media screen and (min-width: 375px) and (max-width: 430px) {
+  .card-grid-2 { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
+  .hero-title { font-size: 28px !important; }
+}
+
+/* iPhone XR/14 Plus (430-480px) */  
+@media screen and (min-width: 430px) and (max-width: 480px) {
+  .card-grid-3 { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* Surface Duo, Galaxy Z Fold open (540-720px) */
+@media screen and (min-width: 540px) and (max-width: 720px) {
+  .card-grid-4 { grid-template-columns: 1fr 1fr 1fr !important; }
+  .sidebar-layout { flex-direction: row !important; }
+}
+
+/* iPad Mini/Air portrait (768-900px) */
+@media screen and (min-width: 768px) and (max-width: 1024px) {
+  .card-grid-4 { grid-template-columns: 1fr 1fr 1fr !important; }
+  .product-detail-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Nest Hub (1024px) */
+@media screen and (width: 1024px) {
+  .desktop-sidebar { width: 200px !important; }
+}
+
+/* ── Typography scaling ───────────────── */
+.responsive-title {
+  font-size: clamp(22px, 5vw, 52px);
+  line-height: 1.15;
+}
+.responsive-subtitle {
+  font-size: clamp(14px, 2vw, 20px);
+}
+.responsive-body {
+  font-size: clamp(13px, 1.5vw, 16px);
+}

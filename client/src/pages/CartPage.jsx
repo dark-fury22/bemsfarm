@@ -18,7 +18,8 @@ export default function CartPage() {
   const [discount, setDiscount] = useState(0);
   const [couponMsg, setCouponMsg] = useState("");
   const [couponValid, setCouponValid] = useState(null);
-  const { isMobile, isTablet, isDesktop } = useResponsive();
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
 
   const validCoupons = {
     BEMS10: { type: "percent", value: 10, label: "10% off" },

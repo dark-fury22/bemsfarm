@@ -12,7 +12,8 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [adding, setAdding] = useState(false);
   const [windowWidth] = useState(() => window.innerWidth);
-  const { isMobile, isTablet, isDesktop } = useResponsive();
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
 
   if (!isLoggedIn)
     return (
@@ -964,13 +965,13 @@ function WishlistSection({ navigate }) {
       id: 1,
       name: "Dried Crayfish",
       price: 7500,
-      img: "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=200&q=80",
+      img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141631/crayfish_bslwl4.jpg",
     },
     {
       id: 2,
       name: "Palm Oil",
       price: 4800,
-      img: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=200&q=80",
+      img: "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141485/palm_oil_ufbfu6.jpg",
     },
   ];
   return (

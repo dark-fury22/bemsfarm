@@ -1,15 +1,17 @@
-const { Pool } = require('pg');
+// server/src/db/pool.js
+// Works for both local (no SSL) and Render production (SSL required)
+
+const { Pool } = require("pg");
 
 const pool = new Pool({
-  user:     'postgres',
-  host:     'localhost',
-  database: 'frutella',
-  password: 'Timmy_turn1',
-  port:     5432,
+  connectionString: process.env.DATABASE_URL,
+  ...(process.env.NODE_ENV === "production" && {
+    ssl: { rejectUnauthorized: false },
+  }),
 });
 
-pool.connect()
-  .then(() => console.log('✅ PostgreSQL connected'))
-  .catch(err => console.error('❌ DB connection error:', err.message));
+pool.on("error", (err) => {
+  console.error("Unexpected DB pool error:", err.message);
+});
 
 module.exports = pool;

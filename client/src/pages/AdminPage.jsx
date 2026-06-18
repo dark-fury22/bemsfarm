@@ -4,16 +4,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
 import api from "../services/api";
-import logoImg from "../assets/logo.png";
+import logoImg from "../assets/bemsfarms_logo.png";
 
 const C = {
-  sidebar: "#1A1A2E",
-  primary: "#2E7D32",
-  accent: "#F57C00",
-  text: "#202124",
-  muted: "#9AA0A6",
-  border: "#E8EAED",
-  bg: "#F8F9FA",
+  sidebar: "#0F172A", // Dark navy (more modern than dark blue-purple)
+  sidebarBorder: "rgba(255,255,255,0.07)",
+  primary: "#40916C", // Medium green
+  accent: "#F59E0B", // Amber
+  danger: "#EF4444",
+  text: "#111827",
+  muted: "#9CA3AF",
+  border: "#F3F4F6",
+  bg: "#F8FAFC",
+  white: "#FFFFFF",
 };
 
 const statusColors = {
@@ -28,6 +31,8 @@ const tabs = [
   { id: "orders", label: "Orders", emoji: "📦" },
   { id: "products", label: "Products", emoji: "🌾" },
   { id: "customers", label: "Customers", emoji: "👥" },
+  { id: "subscribers", label: "Subscribers", emoji: "📧" },
+  { id: "returns", label: "Returns", emoji: "↩️" },
 ];
 
 const mockCustomers = [
@@ -64,7 +69,8 @@ const mockCustomers = [
 export default function AdminPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isMobile } = useResponsive();
+  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
+    useResponsive();
 
   const [products, setProducts] = useState([]);
   const [activeTab, setActiveTab] = useState("overview");
@@ -76,6 +82,8 @@ export default function AdminPage() {
   const [orderFilter, setOrderFilter] = useState("All");
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [subscribers, setSubscribers] = useState([]);
+  const [returns, setReturns] = useState([]);
 
   // Real stats state
   const [stats, setStats] = useState(null);
@@ -101,8 +109,31 @@ export default function AdminPage() {
   });
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        const [subscribersRes, returnsRes] = await Promise.all([
+          api.get("/admin/subscribers"),
+          api.get("/admin/returns"),
+        ]);
+
+        if (!isMounted) return;
+
+        setSubscribers(subscribersRes.data.subscribers || []);
+        setReturns(returnsRes.data.returns || []);
+      } catch (err) {
+        console.error("Admin data fetch error:", err);
+      }
+    };
+
     fetchProducts();
     fetchStats();
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const fetchProducts = () => {
@@ -335,12 +366,14 @@ export default function AdminPage() {
             overflow: "auto",
           }}
         >
+          {/* Logo Div*/}
           <div
             style={{
-              padding: "24px 20px",
+              padding: "20px 16px 16px",
               borderBottom: "1px solid rgba(255,255,255,0.08)",
             }}
           >
+            {/* Logo using just text + icon since the PNG has bg issues on dark */}
             <div
               style={{
                 display: "flex",
@@ -349,67 +382,79 @@ export default function AdminPage() {
                 marginBottom: "4px",
               }}
             >
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                onClick={() => navigate("/")}
+              <div
                 style={{
-                  cursor: "pointer",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  background: "linear-gradient(135deg, #40916C, #52B788)",
                   display: "flex",
                   alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "18px",
+                  boxShadow: "0 4px 12px rgba(64,145,108,0.4)",
                   flexShrink: 0,
                 }}
               >
-                <img
-                  src={logoImg}
-                  alt="BemsFarm"
+                🌿
+              </div>
+              <div>
+                <span
                   style={{
-                    height: "40px",
-                    width: "auto",
-                    objectFit: "contain",
+                    fontSize: "16px",
+                    fontWeight: 800,
+                    color: "white",
+                    fontFamily: "Syne, sans-serif",
+                    letterSpacing: "-0.3px",
                   }}
-                />
-              </motion.div>
-              <span
-                style={{ fontSize: "16px", fontWeight: 800, color: "white" }}
-              >
-                BemsFarm
-              </span>
+                >
+                  Bems<span style={{ color: "#52B788" }}>Farms</span>
+                </span>
+                <p
+                  style={{
+                    fontSize: "9px",
+                    color: "rgba(255,255,255,0.4)",
+                    letterSpacing: "2px",
+                    textTransform: "uppercase",
+                    marginTop: "1px",
+                  }}
+                >
+                  Admin Dashboard
+                </p>
+              </div>
             </div>
-            <p
-              style={{
-                fontSize: "10px",
-                color: "rgba(255,255,255,0.4)",
-                letterSpacing: "2px",
-              }}
-            >
-              ADMIN DASHBOARD
-            </p>
           </div>
           <nav style={{ padding: "16px 12px", flex: 1 }}>
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                // Replace the tab button styles in the sidebar:
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "10px",
                   width: "100%",
-                  padding: "12px 14px",
+                  padding: "11px 14px",
                   borderRadius: "12px",
                   border: "none",
                   cursor: "pointer",
                   textAlign: "left",
                   fontSize: "14px",
-                  fontWeight: activeTab === tab.id ? 700 : 400,
+                  fontFamily: "Nunito, sans-serif",
+                  fontWeight: activeTab === tab.id ? 700 : 500,
                   backgroundColor:
                     activeTab === tab.id
-                      ? "rgba(46,125,50,0.2)"
+                      ? "rgba(64,145,108,0.2)"
                       : "transparent",
                   color:
-                    activeTab === tab.id ? "#4CAF50" : "rgba(255,255,255,0.6)",
-                  marginBottom: "4px",
+                    activeTab === tab.id ? "#52B788" : "rgba(255,255,255,0.55)",
+                  marginBottom: "2px",
                   transition: "all 0.15s",
+                  borderLeft:
+                    activeTab === tab.id
+                      ? "3px solid #52B788"
+                      : "3px solid transparent",
                 }}
               >
                 <span style={{ fontSize: "18px" }}>{tab.emoji}</span>
@@ -1806,6 +1851,304 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+      {/* SUBSCRIBERS TAB */}
+      {activeTab === "subscribers" && (
+        <div
+          style={{
+            backgroundColor: "white",
+            borderRadius: "16px",
+            border: `1px solid ${C.border}`,
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: `1px solid ${C.border}`,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: "16px", fontWeight: 700 }}>
+                Email Subscribers
+              </h3>
+              <p style={{ fontSize: "12px", color: C.muted }}>
+                {subscribers.length} total subscribers
+              </p>
+            </div>
+            <div
+              style={{
+                backgroundColor: "#D1FAE5",
+                color: "#065F46",
+                padding: "4px 12px",
+                borderRadius: "50px",
+                fontSize: "13px",
+                fontWeight: 700,
+              }}
+            >
+              {subscribers.filter((s) => s.is_active).length} active
+            </div>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: "400px",
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: C.bg }}>
+                  {["Email", "Subscribed", "Code", "Status"].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "12px 16px",
+                        textAlign: "left",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: C.muted,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {subscribers.map((s, i) => (
+                  <tr
+                    key={s.id}
+                    style={{ borderBottom: "1px solid #F5F5F5" }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = C.bg)
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "transparent")
+                    }
+                  >
+                    <td
+                      style={{
+                        padding: "14px 16px",
+                        fontSize: "14px",
+                        color: C.text,
+                      }}
+                    >
+                      {s.email}
+                    </td>
+                    <td
+                      style={{
+                        padding: "14px 16px",
+                        fontSize: "13px",
+                        color: C.muted,
+                      }}
+                    >
+                      {new Date(s.subscribed_at).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: "14px 16px" }}>
+                      <code
+                        style={{
+                          backgroundColor: "#FEF3C7",
+                          color: "#92400E",
+                          padding: "2px 8px",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {s.discount_code}
+                      </code>
+                    </td>
+                    <td style={{ padding: "14px 16px" }}>
+                      <span
+                        style={{
+                          backgroundColor: s.is_active ? "#D1FAE5" : "#F5F5F5",
+                          color: s.is_active ? "#065F46" : C.muted,
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          padding: "3px 10px",
+                          borderRadius: "50px",
+                        }}
+                      >
+                        {s.is_active ? "● Active" : "○ Inactive"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/*RETURNS TAB */}
+      {activeTab === "returns" && (
+        <div
+          style={{
+            backgroundColor: "white",
+            borderRadius: "16px",
+            border: `1px solid ${C.border}`,
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: `1px solid ${C.border}`,
+            }}
+          >
+            <h3 style={{ fontSize: "16px", fontWeight: 700 }}>
+              Return Requests
+            </h3>
+          </div>
+          {returns.length === 0 ? (
+            <div
+              style={{ textAlign: "center", padding: "60px", color: C.muted }}
+            >
+              <div style={{ fontSize: "48px", marginBottom: "12px" }}>↩️</div>
+              <p>No return requests yet</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  minWidth: "600px",
+                }}
+              >
+                <thead>
+                  <tr style={{ backgroundColor: C.bg }}>
+                    {[
+                      "Customer",
+                      "Product",
+                      "Reason",
+                      "Date",
+                      "Status",
+                      "Action",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          padding: "12px 16px",
+                          textAlign: "left",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          color: C.muted,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {returns.map((r) => (
+                    <tr
+                      key={r.id}
+                      style={{ borderBottom: "1px solid #F5F5F5" }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.backgroundColor = C.bg)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.backgroundColor = "transparent")
+                      }
+                    >
+                      <td style={{ padding: "12px 16px", fontSize: "14px" }}>
+                        {r.customer_name}
+                      </td>
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          fontSize: "13px",
+                          color: C.muted,
+                        }}
+                      >
+                        {r.product_name}
+                      </td>
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          fontSize: "13px",
+                          color: C.muted,
+                        }}
+                      >
+                        {r.reason.replace(/_/g, " ")}
+                      </td>
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          fontSize: "12px",
+                          color: C.muted,
+                        }}
+                      >
+                        {new Date(r.created_at).toLocaleDateString()}
+                      </td>
+                      <td style={{ padding: "12px 16px" }}>
+                        <span
+                          style={{
+                            backgroundColor:
+                              r.status === "submitted"
+                                ? "#FEF3C7"
+                                : r.status === "approved"
+                                  ? "#D1FAE5"
+                                  : "#FEE2E2",
+                            color:
+                              r.status === "submitted"
+                                ? "#92400E"
+                                : r.status === "approved"
+                                  ? "#065F46"
+                                  : "#991B1B",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            padding: "3px 10px",
+                            borderRadius: "50px",
+                          }}
+                        >
+                          {r.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: "12px 16px" }}>
+                        <select
+                          defaultValue={r.status}
+                          onChange={async (e) => {
+                            await api.patch(`/admin/returns/${r.id}`, {
+                              status: e.target.value,
+                            });
+                            api
+                              .get("/admin/returns")
+                              .then((res) =>
+                                setReturns(res.data.returns || []),
+                              );
+                          }}
+                          style={{
+                            padding: "5px 10px",
+                            borderRadius: "8px",
+                            border: `1px solid ${C.border}`,
+                            fontSize: "12px",
+                            cursor: "pointer",
+                            outline: "none",
+                          }}
+                        >
+                          <option value="submitted">Submitted</option>
+                          <option value="approved">Approve</option>
+                          <option value="rejected">Reject</option>
+                          <option value="refunded">Refunded</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Mobile Bottom Tab Bar */}
       {isMobile && (
