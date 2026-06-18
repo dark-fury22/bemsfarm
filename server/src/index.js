@@ -50,8 +50,12 @@ app.use("/api", miscRoutes);
 app.use("/api/advanced-ai", advancedAiRoutes);
 
 app.get("/health", (req, res) => res.json({ status: "OK", time: new Date() }));
+app.get("/test", (req, res) => {
+  res.json({ message: "server works" });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+console.log("productsRoutes loaded");
 
 module.exports = app;
