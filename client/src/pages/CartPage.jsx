@@ -1,13 +1,49 @@
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "../context/CartContext";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import PageWrapper from "../components/layout/PageWrapper";
-import ProductCard, {
-  getProductEmoji,
-  getProductBg,
-} from "../components/ui/ProductCard";
-import { useResponsive } from "../hooks/useResponsive";
+import { getProductEmoji, getProductBg } from "../components/ui/ProductCard";
+
+/*
+  ── RESPONSIVE STRATEGY ──────────────────────────────────────
+  Old version drove the cart-row grid with JS isMobile boolean,
+  collapsing straight from a cramped 4-column desktop grid to a
+  stacked mobile layout with nothing in between — broke badly on
+  tablets (768-1023px) where 4 columns were still forced or the
+  jump to full-stack wasted huge horizontal space.
+
+  New breakpoints:
+    <640px    : fully stacked card layout (image+name on top row,
+                price/qty/subtotal below) — no grid at all
+    640-899px : 2-column summary below cart (not sidebar), simpler
+                3-col item grid (Product / Qty / Subtotal, price
+                folded into product line)
+    >=900px   : original 4-column grid + sticky sidebar summary
+*/
+const CART_CSS = `
+.bf-cart-page-pad { padding: 20px 16px; }
+.bf-cart-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+.bf-cart-row-header { display: none; }
+.bf-cart-row { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+.bf-cart-row-product { display: flex; align-items: center; gap: 12px; }
+.bf-cart-row-meta { display: flex; justify-content: space-between; align-items: center; }
+.bf-cart-summary { position: static; }
+.bf-cart-actions { flex-direction: column; align-items: stretch; gap: 16px; }
+
+@media (min-width: 640px) {
+  .bf-cart-row-header { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 16px; }
+  .bf-cart-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 16px; align-items: center; }
+  .bf-cart-row-meta { display: contents; }
+  .bf-cart-actions { flex-direction: row; align-items: center; }
+}
+
+@media (min-width: 900px) {
+  .bf-cart-page-pad { padding: 32px 24px; }
+  .bf-cart-grid { grid-template-columns: 1fr 360px; gap: 32px; align-items: flex-start; }
+  .bf-cart-summary { position: sticky; top: 90px; }
+}
+`;
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -18,8 +54,6 @@ export default function CartPage() {
   const [discount, setDiscount] = useState(0);
   const [couponMsg, setCouponMsg] = useState("");
   const [couponValid, setCouponValid] = useState(null);
-  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
-    useResponsive();
 
   const validCoupons = {
     BEMS10: { type: "percent", value: 10, label: "10% off" },
@@ -54,24 +88,24 @@ export default function CartPage() {
         <div
           style={{
             maxWidth: "600px",
-            margin: "80px auto",
+            margin: "60px auto",
             textAlign: "center",
-            padding: "40px 24px",
+            padding: "32px 20px",
           }}
         >
           <motion.div
             animate={{ y: [0, -12, 0] }}
             transition={{ duration: 2.5, repeat: Infinity }}
-            style={{ fontSize: "100px", marginBottom: "24px" }}
+            style={{ fontSize: "80px", marginBottom: "20px" }}
           >
             🛒
           </motion.div>
           <h2
-            style={{ fontSize: "24px", fontWeight: 800, marginBottom: "12px" }}
+            style={{ fontSize: "22px", fontWeight: 800, marginBottom: "10px" }}
           >
             Your cart is empty
           </h2>
-          <p style={{ color: "#9AA0A6", marginBottom: "24px" }}>
+          <p style={{ color: "#9AA0A6", marginBottom: "20px" }}>
             Looks like you haven't added any Nigerian foods yet!
           </p>
           <motion.button
@@ -82,8 +116,8 @@ export default function CartPage() {
               color: "white",
               border: "none",
               borderRadius: "14px",
-              padding: "16px 36px",
-              fontSize: "16px",
+              padding: "14px 32px",
+              fontSize: "15px",
               fontWeight: 700,
               cursor: "pointer",
               boxShadow: "0 4px 16px rgba(46,125,50,0.3)",
@@ -97,16 +131,17 @@ export default function CartPage() {
 
   return (
     <PageWrapper>
+      <style>{CART_CSS}</style>
       <div
-        style={{ maxWidth: "1100px", margin: "0 auto", padding: "32px 24px" }}
+        className="bf-cart-page-pad"
+        style={{ maxWidth: "1100px", margin: "0 auto" }}
       >
-        {/* Breadcrumb */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: "8px",
-            marginBottom: "24px",
+            marginBottom: "18px",
             fontSize: "13px",
             color: "#9AA0A6",
           }}
@@ -126,26 +161,22 @@ export default function CartPage() {
           <span style={{ color: "#202124", fontWeight: 600 }}>Cart</span>
         </div>
 
-        <h1 style={{ fontSize: "28px", fontWeight: 800, marginBottom: "24px" }}>
+        <h1
+          style={{
+            fontSize: "clamp(22px, 5vw, 28px)",
+            fontWeight: 800,
+            marginBottom: "20px",
+          }}
+        >
           My Cart
         </h1>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1fr 360px",
-            gap: "32px",
-            alignItems: "flex-start",
-          }}
-        >
+        <div className="bf-cart-grid">
           {/* Cart Items */}
           <div>
-            {/* Header */}
             <div
+              className="bf-cart-row-header"
               style={{
-                display: "grid",
-                gridTemplateColumns: "2fr 1fr 1fr 1fr",
-                gap: "16px",
                 padding: "12px 16px",
                 backgroundColor: "#F8F9FA",
                 borderRadius: "12px",
@@ -165,32 +196,20 @@ export default function CartPage() {
               {cartItems.map(({ product, quantity }) => (
                 <motion.div
                   key={product.id}
+                  className="bf-cart-row"
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20, height: 0 }}
                   style={{
-                    display: isMobile ? "flex" : "grid",
-                    flexDirection: isMobile ? "column" : "row",
-                    gridTemplateColumns: isMobile
-                      ? undefined
-                      : "2fr 1fr 1fr 1fr",
-                    gap: "16px",
-                    padding: "20px 16px",
+                    padding: "16px",
                     backgroundColor: "white",
                     borderRadius: "16px",
                     marginBottom: "12px",
                     border: "1px solid #E8EAED",
-                    alignItems: "center",
                   }}
                 >
                   {/* Product */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "16px",
-                    }}
-                  >
+                  <div className="bf-cart-row-product">
                     <div style={{ position: "relative" }}>
                       <motion.button
                         whileTap={{ scale: 0.8 }}
@@ -217,25 +236,29 @@ export default function CartPage() {
                       </motion.button>
                       <div
                         style={{
-                          width: "64px",
-                          height: "64px",
+                          width: "56px",
+                          height: "56px",
                           borderRadius: "12px",
                           backgroundColor: getProductBg(product.name),
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: "32px",
+                          fontSize: "28px",
+                          flexShrink: 0,
                         }}
                       >
                         {getProductEmoji(product.name)}
                       </div>
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <p
                         style={{
                           fontWeight: 600,
-                          fontSize: "15px",
+                          fontSize: "14px",
                           color: "#202124",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {product.name}
@@ -246,99 +269,105 @@ export default function CartPage() {
                     </div>
                   </div>
 
-                  {/* Price */}
-                  <p
-                    style={{
-                      textAlign: "center",
-                      fontWeight: 600,
-                      color: "#5F6368",
-                    }}
-                  >
-                    ₦{(product.price * 1500).toLocaleString()}
-                  </p>
-
-                  {/* Qty Controls */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      justifyContent: "center",
-                      backgroundColor: "#F8F9FA",
-                      borderRadius: "10px",
-                      padding: "6px 12px",
-                      border: "1px solid #E8EAED",
-                    }}
-                  >
-                    <motion.button
-                      whileTap={{ scale: 0.8 }}
-                      onClick={() => updateQuantity(product.id, quantity - 1)}
+                  {/* On mobile: price + subtotal share a row; on >=640px these become real grid cells */}
+                  <div className="bf-cart-row-meta">
+                    <p
                       style={{
-                        width: "28px",
-                        height: "28px",
-                        borderRadius: "8px",
-                        border: "1px solid #E8EAED",
-                        backgroundColor: "white",
-                        cursor: "pointer",
-                        fontWeight: 700,
-                        fontSize: "16px",
+                        fontWeight: 600,
                         color: "#5F6368",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      −
-                    </motion.button>
-                    <span
-                      style={{
-                        fontSize: "15px",
-                        fontWeight: 700,
-                        minWidth: "24px",
+                        fontSize: "13px",
                         textAlign: "center",
+                        margin: 0,
                       }}
                     >
-                      {quantity}
-                    </span>
-                    <motion.button
-                      whileTap={{ scale: 0.8 }}
-                      onClick={() => updateQuantity(product.id, quantity + 1)}
+                      <span style={{ display: "inline" }}>
+                        ₦{(product.price * 1500).toLocaleString()} each
+                      </span>
+                    </p>
+
+                    <div
                       style={{
-                        width: "28px",
-                        height: "28px",
-                        borderRadius: "8px",
-                        border: "none",
-                        backgroundColor: "#F57C00",
-                        cursor: "pointer",
-                        fontWeight: 700,
-                        fontSize: "16px",
-                        color: "white",
                         display: "flex",
                         alignItems: "center",
+                        gap: "8px",
                         justifyContent: "center",
+                        backgroundColor: "#F8F9FA",
+                        borderRadius: "10px",
+                        padding: "6px 10px",
+                        border: "1px solid #E8EAED",
                       }}
                     >
-                      +
-                    </motion.button>
-                  </div>
+                      <motion.button
+                        whileTap={{ scale: 0.8 }}
+                        onClick={() => updateQuantity(product.id, quantity - 1)}
+                        style={{
+                          width: "26px",
+                          height: "26px",
+                          borderRadius: "8px",
+                          border: "1px solid #E8EAED",
+                          backgroundColor: "white",
+                          cursor: "pointer",
+                          fontWeight: 700,
+                          fontSize: "15px",
+                          color: "#5F6368",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        −
+                      </motion.button>
+                      <span
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 700,
+                          minWidth: "20px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {quantity}
+                      </span>
+                      <motion.button
+                        whileTap={{ scale: 0.8 }}
+                        onClick={() => updateQuantity(product.id, quantity + 1)}
+                        style={{
+                          width: "26px",
+                          height: "26px",
+                          borderRadius: "8px",
+                          border: "none",
+                          backgroundColor: "#F57C00",
+                          cursor: "pointer",
+                          fontWeight: 700,
+                          fontSize: "15px",
+                          color: "white",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        +
+                      </motion.button>
+                    </div>
 
-                  {/* Subtotal */}
-                  <p
-                    style={{
-                      textAlign: "right",
-                      fontWeight: 800,
-                      fontSize: "16px",
-                      color: "#2E7D32",
-                    }}
-                  >
-                    ₦{(product.price * 1500 * quantity).toLocaleString()}
-                  </p>
+                    <p
+                      style={{
+                        textAlign: "right",
+                        fontWeight: 800,
+                        fontSize: "15px",
+                        color: "#2E7D32",
+                        margin: 0,
+                      }}
+                    >
+                      ₦{(product.price * 1500 * quantity).toLocaleString()}
+                    </p>
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>
 
             {/* Actions */}
             <div
+              className="bf-cart-actions"
               style={{
                 display: "flex",
                 justifyContent: "space-between",
@@ -360,8 +389,8 @@ export default function CartPage() {
               >
                 ← Return to Shop
               </motion.button>
-              {/* Replace the coupon input section with: */}
-              <div style={{ marginBottom: "16px" }}>
+
+              <div>
                 <div
                   style={{ display: "flex", gap: "8px", marginBottom: "8px" }}
                 >
@@ -376,6 +405,7 @@ export default function CartPage() {
                     placeholder="Coupon code (try BEMS10)"
                     style={{
                       flex: 1,
+                      minWidth: 0,
                       padding: "12px 16px",
                       border: `1px solid ${couponValid === true ? "#2E7D32" : couponValid === false ? "#C62828" : "#E8EAED"}`,
                       borderRadius: "10px",
@@ -410,6 +440,7 @@ export default function CartPage() {
                       fontSize: "13px",
                       color: couponValid ? "#2E7D32" : "#C62828",
                       fontWeight: 500,
+                      margin: 0,
                     }}
                   >
                     {couponMsg}
@@ -421,20 +452,19 @@ export default function CartPage() {
 
           {/* Summary */}
           <div
+            className="bf-cart-summary"
             style={{
               backgroundColor: "white",
               borderRadius: "16px",
-              padding: "24px",
+              padding: "22px",
               border: "1px solid #E8EAED",
-              position: "sticky",
-              top: "90px",
             }}
           >
             <h3
               style={{
-                fontSize: "18px",
+                fontSize: "17px",
                 fontWeight: 700,
-                marginBottom: "20px",
+                marginBottom: "18px",
               }}
             >
               Cart Total
@@ -448,11 +478,11 @@ export default function CartPage() {
                 borderBottom: "1px solid #F1F3F4",
               }}
             >
-              <span style={{ color: "#5F6368", fontSize: "15px" }}>
+              <span style={{ color: "#5F6368", fontSize: "14px" }}>
                 Subtotal:
               </span>
               <span
-                style={{ fontWeight: 800, fontSize: "20px", color: "#2E7D32" }}
+                style={{ fontWeight: 800, fontSize: "18px", color: "#2E7D32" }}
               >
                 ₦{(cartSubtotal + delivery - discount).toLocaleString()}
               </span>
@@ -461,18 +491,18 @@ export default function CartPage() {
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                marginBottom: "16px",
-                paddingBottom: "16px",
+                marginBottom: "14px",
+                paddingBottom: "14px",
                 borderBottom: "1px solid #F1F3F4",
               }}
             >
-              <span style={{ color: "#5F6368", fontSize: "15px" }}>
+              <span style={{ color: "#5F6368", fontSize: "14px" }}>
                 Shipping:
               </span>
               <span
                 style={{
                   fontWeight: 600,
-                  fontSize: "15px",
+                  fontSize: "14px",
                   color: delivery === 0 ? "#2E7D32" : "#202124",
                 }}
               >
@@ -487,7 +517,7 @@ export default function CartPage() {
                   backgroundColor: "#E8F5E9",
                   padding: "8px 12px",
                   borderRadius: "8px",
-                  marginBottom: "16px",
+                  marginBottom: "14px",
                 }}
               >
                 🎉 You qualified for free shipping!
@@ -498,7 +528,7 @@ export default function CartPage() {
                 style={{
                   fontSize: "12px",
                   color: "#9AA0A6",
-                  marginBottom: "16px",
+                  marginBottom: "14px",
                 }}
               >
                 Add ₦{(15000 - cartSubtotal).toLocaleString()} more for free
@@ -526,12 +556,12 @@ export default function CartPage() {
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                marginBottom: "24px",
+                marginBottom: "20px",
               }}
             >
-              <span style={{ fontWeight: 700, fontSize: "16px" }}>Total:</span>
+              <span style={{ fontWeight: 700, fontSize: "15px" }}>Total:</span>
               <span
-                style={{ fontWeight: 800, fontSize: "20px", color: "#2E7D32" }}
+                style={{ fontWeight: 800, fontSize: "18px", color: "#2E7D32" }}
               >
                 ₦{total.toLocaleString()}
               </span>
@@ -547,7 +577,7 @@ export default function CartPage() {
                 border: "none",
                 borderRadius: "14px",
                 padding: "16px",
-                fontSize: "16px",
+                fontSize: "15px",
                 fontWeight: 800,
                 cursor: "pointer",
                 boxShadow: "0 4px 16px rgba(245,124,0,0.35)",

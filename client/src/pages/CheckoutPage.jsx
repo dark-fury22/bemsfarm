@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import PageWrapper from "../components/layout/PageWrapper";
@@ -65,12 +65,10 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [psLoaded, setPsLoaded] = useState(false);
-  const scriptRef = useRef(null);
 
   const DELIVERY = 500;
   const total = cartSubtotal + DELIVERY;
 
-  // Load Paystack script once
   useEffect(() => {
     if (document.getElementById("paystack-js")) {
       setPsLoaded(true);
@@ -80,16 +78,9 @@ export default function CheckoutPage() {
     s.id = "paystack-js";
     s.src = "https://js.paystack.co/v1/inline.js";
     s.async = true;
-    s.onload = () => {
-      console.log("✅ Paystack ready");
-      setPsLoaded(true);
-    };
-    s.onerror = () => console.warn("⚠️ Paystack script failed");
-    scriptRef.current = s;
+    s.onload = () => setPsLoaded(true);
+    s.onerror = () => console.warn("⚠️ Paystack script failed to load");
     document.body.appendChild(s);
-    return () => {
-      /* leave script in DOM — safe to re-use */
-    };
   }, []);
 
   const set = (field) => (e) =>
@@ -105,15 +96,66 @@ export default function CheckoutPage() {
     return null;
   };
 
-  // ── CREATE ORDER IN DB ───────────────────────────────────────
+  /*
+    ── CRITICAL FIX ──────────────────────────────────────────────
+    CartContext stores each cart entry as a NESTED object:
+      { product: { id, name, price, unit, ... }, quantity }
+    NOT a flat { id, price, quantity } shape.
+
+    The previous version of this function read i.id / i.price
+    directly off the cart item, which doesn't exist on that shape
+    (it's one level deeper, on i.product.id / i.product.price).
+    Those silently evaluated to `undefined`, which became NaN once
+    Number()'d on the backend, and Postgres rejected the insert with
+    "invalid input syntax for type integer: NaN" — the exact error
+    seen in Render's logs. This is why orders never saved and the
+    cart never cleared, even though Paystack itself succeeded.
+
+    Fix: read every field from the correct nested location, AND
+    validate before sending so a malformed cart item fails fast
+    client-side with a clear message instead of reaching the server
+    as silent NaNs.
+  */
+  const buildOrderItems = () => {
+    const items = [];
+    for (const entry of cartItems) {
+      const product = entry.product;
+      const quantity = entry.quantity;
+
+      if (!product || typeof product.id === "undefined") {
+        throw new Error(
+          "A cart item is missing product information. Please remove it and re-add it to your cart.",
+        );
+      }
+      const productId = Number(product.id);
+      const qty = Number(quantity);
+      const price = Number(product.price);
+
+      if (!Number.isInteger(productId)) {
+        throw new Error(
+          `Invalid product ID for "${product.name || "an item"}" in your cart.`,
+        );
+      }
+      if (!Number.isFinite(qty) || qty <= 0) {
+        throw new Error(
+          `Invalid quantity for "${product.name || "an item"}" in your cart.`,
+        );
+      }
+      if (!Number.isFinite(price) || price <= 0) {
+        throw new Error(
+          `Invalid price for "${product.name || "an item"}" in your cart.`,
+        );
+      }
+
+      items.push({ product_id: productId, quantity: qty, price });
+    }
+    return items;
+  };
 
   const createOrder = async (ref) => {
+    const items = buildOrderItems();
     const payload = {
-      items: cartItems.map((i) => ({
-        product_id: i.id,
-        quantity: i.quantity,
-        price: i.price,
-      })),
+      items,
       total: parseFloat(total),
       payment_method: payMethod,
       payment_ref: ref || null,
@@ -122,26 +164,6 @@ export default function CheckoutPage() {
     const res = await api.post("/orders", payload);
     return res.data.orderId || res.data.id;
   };
-  console.log(JSON.stringify(cartItems));
-  const handlePaymentSuccess = async (response) => {
-    try {
-      const orderId = await createOrder(response.reference);
-      clearCart();
-      setTimeout(() => {
-        setLoading(false);
-        navigate("/order-confirmed", {
-          state: { orderId, reference: response.reference },
-        });
-      }, 400);
-    } catch (orderErr) {
-      console.error("❌ Order creation after payment failed:", orderErr);
-      setLoading(false);
-      setError(
-        `Payment was received (ref: ${response.reference}) but order creation failed. ` +
-          `Please contact support with this reference number.`,
-      );
-    }
-  };
 
   // ── PAYSTACK PAYMENT ────────────────────────────────────────
   const handlePaystack = (e) => {
@@ -149,6 +171,15 @@ export default function CheckoutPage() {
     const err = validate();
     if (err) {
       setError(err);
+      return;
+    }
+
+    // Validate cart items BEFORE opening Paystack — catch nested-shape
+    // or NaN problems before the customer is ever charged.
+    try {
+      buildOrderItems();
+    } catch (cartErr) {
+      setError(cartErr.message);
       return;
     }
 
@@ -162,27 +193,39 @@ export default function CheckoutPage() {
     setError(null);
     setLoading(true);
 
+    const onPaymentSuccess = (response) => {
+      console.log("✅ Paystack success:", response.reference);
+      finalizeOrderAfterPayment(response.reference);
+    };
+
+    const finalizeOrderAfterPayment = async (reference) => {
+      try {
+        const orderId = await createOrder(reference);
+        clearCart();
+        setTimeout(() => {
+          setLoading(false);
+          navigate("/order-confirmed", { state: { orderId, reference } });
+        }, 400);
+      } catch (orderErr) {
+        console.error("❌ Order creation after payment failed:", orderErr);
+        setLoading(false);
+        const detail = orderErr?.response?.data?.message || orderErr.message;
+        setError(
+          `Payment was received (ref: ${reference}) but order creation failed: ${detail}. ` +
+            `Please contact support with this reference number — your payment is safe.`,
+        );
+      }
+    };
+
     try {
       const handler = window.PaystackPop.setup({
         key: PAYSTACK_KEY,
         email: form.email,
-        amount: Math.round(total * 100), // kobo
+        amount: Math.round(total * 100),
         ref: `BF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         currency: "NGN",
         channels: ["card", "bank", "ussd", "qr", "bank_transfer"],
-
-        // ── SUCCESS ─────────────────────────────────────────────
-        // This callback runs INSIDE Paystack's iframe context.
-        // NEVER navigate() inside onSuccess directly — Paystack's iframe
-        // may still be running. Use a short timeout + clearCart first.
-        callback: function (response) {
-          console.log("✅ Paystack success:", response.reference);
-          // Call the async logic separately — callback itself stays a plain
-          // function so Paystack's SDK validator accepts it.
-          handlePaymentSuccess(response);
-        },
-
-        // ── CLOSED WITHOUT PAYING ────────────────────────────────
+        callback: onPaymentSuccess,
         onClose: () => {
           console.log("ℹ️ Paystack modal closed");
           setLoading(false);
@@ -217,14 +260,12 @@ export default function CheckoutPage() {
       });
     } catch (codErr) {
       console.error("❌ COD order error:", codErr);
-      setError(
-        codErr?.response?.data?.message || "Order failed. Please try again.",
-      );
+      const detail = codErr?.response?.data?.message || codErr.message;
+      setError(detail || "Order failed. Please try again.");
       setLoading(false);
     }
   };
 
-  // ── EMPTY CART ───────────────────────────────────────────────
   if (!cartItems || cartItems.length === 0) {
     return (
       <PageWrapper>
@@ -275,7 +316,6 @@ export default function CheckoutPage() {
     );
   }
 
-  // ── SHARED STYLES ────────────────────────────────────────────
   const inputStyle = {
     width: "100%",
     padding: "12px 14px",
@@ -306,12 +346,6 @@ export default function CheckoutPage() {
 
   return (
     <PageWrapper>
-      {/*
-        ── RESPONSIVE LAYOUT
-        Mobile  (<640px): single column, stacked
-        Tablet  (640–900px): single column, slightly wider
-        Desktop (>900px): 3fr left + 2fr right sidebar
-      */}
       <div
         style={{
           backgroundColor: "#F9FAFB",
@@ -319,7 +353,6 @@ export default function CheckoutPage() {
           padding: "0 0 80px",
         }}
       >
-        {/* Page header */}
         <div
           style={{
             backgroundColor: "white",
@@ -348,7 +381,6 @@ export default function CheckoutPage() {
         </div>
 
         <div style={{ maxWidth: "960px", margin: "0 auto", padding: "0 16px" }}>
-          {/* Error banner */}
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -371,7 +403,6 @@ export default function CheckoutPage() {
             </motion.div>
           )}
 
-          {/* ── MAIN GRID ─────────────────────────────────── */}
           <div
             style={{
               display: "grid",
@@ -380,11 +411,9 @@ export default function CheckoutPage() {
               alignItems: "start",
             }}
           >
-            {/* ── LEFT: FORM ────────────────────────────── */}
             <div
               style={{ display: "flex", flexDirection: "column", gap: "20px" }}
             >
-              {/* Delivery Details */}
               <div style={cardStyle}>
                 <h2
                   style={{
@@ -419,7 +448,6 @@ export default function CheckoutPage() {
                 </h2>
 
                 <div style={{ display: "grid", gap: "14px" }}>
-                  {/* Full name + email */}
                   <div
                     style={{
                       display: "grid",
@@ -463,7 +491,6 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  {/* Phone */}
                   <div>
                     <label style={labelStyle}>Phone Number *</label>
                     <input
@@ -482,7 +509,6 @@ export default function CheckoutPage() {
                     />
                   </div>
 
-                  {/* Street address */}
                   <div>
                     <label style={labelStyle}>Street Address *</label>
                     <textarea
@@ -505,7 +531,6 @@ export default function CheckoutPage() {
                     />
                   </div>
 
-                  {/* City + State */}
                   <div
                     style={{
                       display: "grid",
@@ -547,7 +572,6 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Payment Method */}
               <div style={cardStyle}>
                 <h2
                   style={{
@@ -672,7 +696,6 @@ export default function CheckoutPage() {
                   ))}
                 </div>
 
-                {/* Place order button */}
                 <motion.button
                   whileTap={{ scale: loading ? 1 : 0.97 }}
                   onClick={
@@ -738,7 +761,6 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* ── RIGHT: ORDER SUMMARY ──────────────────── */}
             <div style={{ ...cardStyle, position: "sticky", top: "80px" }}>
               <h2
                 style={{
@@ -752,7 +774,6 @@ export default function CheckoutPage() {
                 Order Summary
               </h2>
 
-              {/* Items */}
               <div
                 style={{
                   display: "flex",
@@ -763,9 +784,9 @@ export default function CheckoutPage() {
                   overflowY: "auto",
                 }}
               >
-                {cartItems.map((item, idx) => (
+                {cartItems.map((entry, idx) => (
                   <div
-                    key={`${item.id}-${idx}`}
+                    key={`${entry.product.id}-${idx}`}
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
@@ -785,7 +806,7 @@ export default function CheckoutPage() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {item.name}
+                        {entry.product.name}
                       </p>
                       <p
                         style={{
@@ -794,7 +815,7 @@ export default function CheckoutPage() {
                           color: "#9CA3AF",
                         }}
                       >
-                        × {item.quantity} · {item.unit}
+                        × {entry.quantity} · {entry.product.unit}
                       </p>
                     </div>
                     <span
@@ -805,13 +826,17 @@ export default function CheckoutPage() {
                         flexShrink: 0,
                       }}
                     >
-                      ₦{(item.price * 1500 * item.quantity).toLocaleString()}
+                      ₦
+                      {(
+                        entry.product.price *
+                        1500 *
+                        entry.quantity
+                      ).toLocaleString()}
                     </span>
                   </div>
                 ))}
               </div>
 
-              {/* Totals */}
               <div
                 style={{
                   borderTop: "1px solid #F3F4F6",
@@ -898,15 +923,6 @@ export default function CheckoutPage() {
                   fontWeight: 600,
                   cursor: "pointer",
                   fontFamily: "Nunito, sans-serif",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#1B4332";
-                  e.currentTarget.style.color = "#1B4332";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#E5E7EB";
-                  e.currentTarget.style.color = "#6B7280";
                 }}
               >
                 ← Edit Cart
