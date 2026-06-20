@@ -84,6 +84,23 @@ export function getProductEmoji(name) {
 }
 
 /* ---------------- COMPONENT ---------------- */
+/*
+  ── RESPONSIVE NOTES ─────────────────────────────────────────
+  This card was already mostly intrinsic (percentage-based image
+  via paddingTop, flexible width controlled by the parent grid),
+  so it adapts to its grid cell automatically. Two real gaps fixed:
+
+  1. Product name had `minHeight: 34` with no line-clamp — long
+     names (e.g. "Sorghum (Guinea Corn)") could overflow the card
+     instead of truncating cleanly. Now uses -webkit-line-clamp: 2
+     with overflow hidden, consistent at every card width.
+
+  2. Price + add-button row had no `minWidth: 0` / no flex-shrink
+     guard, so at the narrowest grid column (2-col @ 320px) a long
+     price like "₦52,500" could push the + button off-card. Fixed
+     with min-width:0 + text-overflow ellipsis on price, flexShrink:0
+     pinned on the button.
+*/
 
 export default function ProductCard({ product, index = 0 }) {
   const navigate = useNavigate();
@@ -113,11 +130,12 @@ export default function ProductCard({ product, index = 0 }) {
       onClick={() => navigate(`/product/${product.id}`)}
       style={{
         backgroundColor: "white",
-        borderRadius: "20px",
+        borderRadius: "16px",
         overflow: "hidden",
         cursor: "pointer",
         border: "1px solid #E8EAED",
         position: "relative",
+        minWidth: 0,
       }}
     >
       {/* FEATURED */}
@@ -125,8 +143,8 @@ export default function ProductCard({ product, index = 0 }) {
         <div
           style={{
             position: "absolute",
-            top: 10,
-            left: 10,
+            top: 8,
+            left: 8,
             backgroundColor: "#F57C00",
             color: "white",
             fontSize: "10px",
@@ -140,7 +158,7 @@ export default function ProductCard({ product, index = 0 }) {
         </div>
       )}
 
-      {/* STOCK BADGES (FIXED LOCATION) */}
+      {/* STOCK BADGES */}
       {isOutOfStock && (
         <div
           style={{
@@ -158,8 +176,8 @@ export default function ProductCard({ product, index = 0 }) {
               backgroundColor: "#EF4444",
               color: "white",
               fontWeight: 800,
-              fontSize: "13px",
-              padding: "6px 16px",
+              fontSize: "12px",
+              padding: "5px 14px",
               borderRadius: "50px",
             }}
           >
@@ -172,22 +190,22 @@ export default function ProductCard({ product, index = 0 }) {
         <div
           style={{
             position: "absolute",
-            top: 10,
-            right: 10,
+            top: 8,
+            right: 8,
             backgroundColor: "#F59E0B",
             color: "white",
-            fontSize: "11px",
+            fontSize: "10px",
             fontWeight: 700,
-            padding: "3px 10px",
+            padding: "3px 9px",
             borderRadius: "50px",
             zIndex: 5,
           }}
         >
-          ⚡ Only {product.stock} left
+          ⚡ {product.stock} left
         </div>
       )}
 
-      {/* IMAGE */}
+      {/* IMAGE — intrinsic aspect ratio, scales with grid cell width */}
       <div
         style={{
           paddingTop: "75%",
@@ -207,7 +225,6 @@ export default function ProductCard({ product, index = 0 }) {
           }}
         />
 
-        {/* ADD TO CART OVERLAY */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: hovered && !isOutOfStock ? 1 : 0 }}
@@ -218,21 +235,21 @@ export default function ProductCard({ product, index = 0 }) {
             left: 0,
             right: 0,
             backgroundColor: "rgba(46,125,50,0.92)",
-            padding: "10px",
+            padding: "9px",
             textAlign: "center",
             cursor: "pointer",
             zIndex: 3,
           }}
         >
-          <span style={{ color: "white", fontWeight: 700, fontSize: "13px" }}>
+          <span style={{ color: "white", fontWeight: 700, fontSize: "12px" }}>
             {added ? "✓ Added!" : "🛒 Add to Cart"}
           </span>
         </motion.div>
       </div>
 
       {/* INFO */}
-      <div style={{ padding: "14px" }}>
-        <p style={{ fontSize: 11, color: "#9AA0A6" }}>
+      <div style={{ padding: "12px", minWidth: 0 }}>
+        <p style={{ fontSize: 11, color: "#9AA0A6", marginBottom: 2 }}>
           {product.category_name}
         </p>
 
@@ -241,16 +258,42 @@ export default function ProductCard({ product, index = 0 }) {
             fontSize: 13,
             fontWeight: 700,
             color: "#202124",
-            minHeight: 34,
+            margin: "0 0 4px",
+            lineHeight: 1.35,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            minHeight: "35px",
           }}
         >
           {product.name}
         </h3>
 
-        <p style={{ fontSize: 12, color: "#9AA0A6" }}>{product.unit}</p>
+        <p style={{ fontSize: 11, color: "#9AA0A6", marginBottom: 8 }}>
+          {product.unit}
+        </p>
 
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <p style={{ fontSize: 17, fontWeight: 800, color: "#2E7D32" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          <p
+            style={{
+              fontSize: 15,
+              fontWeight: 800,
+              color: "#2E7D32",
+              margin: 0,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             ₦{(product.price * 1500).toLocaleString()}
           </p>
 
@@ -258,12 +301,18 @@ export default function ProductCard({ product, index = 0 }) {
             whileTap={{ scale: 0.8 }}
             onClick={handleAdd}
             style={{
-              width: 34,
-              height: 34,
-              borderRadius: 10,
+              width: 32,
+              height: 32,
+              borderRadius: 9,
               backgroundColor: added ? "#2E7D32" : "#F57C00",
               color: "white",
               border: "none",
+              fontSize: "16px",
+              cursor: "pointer",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             {added ? "✓" : "+"}

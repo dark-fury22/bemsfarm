@@ -3,10 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "../components/layout/PageWrapper";
 import { useCart } from "../context/CartContext";
-import { useResponsive } from "../hooks/useResponsive";
 import api from "../services/api";
 
-// Product image map
 const PRODUCT_IMAGES = {
   "Ofada Rice":
     "https://res.cloudinary.com/dyzkjerez/image/upload/v1780141430/ofada_rice_mhhzt2.jpg",
@@ -46,11 +44,49 @@ function getProductImage(product) {
   );
 }
 
+/*
+  ── RESPONSIVE STRATEGY ──────────────────────────────────────
+  Same CSS-media-query system as Navbar/Footer/HomePage — no JS
+  width polling, no reflow-on-resize. Breakpoints:
+    <560px   : 2-col grid, no sidebar, category pills row
+    560-767px: 3-col grid, no sidebar
+    768-1023px: 3-col grid, sidebar appears (was previously hidden
+                until 900px with a hard binary cutoff)
+    >=1024px : 4-col grid, sidebar
+*/
+const PRODUCTS_CSS = `
+.bf-products-layout { display: flex; flex-direction: column; gap: 20px; }
+.bf-products-sidebar { display: none; }
+.bf-products-pills { display: flex; }
+.bf-products-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.bf-products-header-pad { padding: 28px 16px 24px; }
+.bf-products-body-pad { padding: 16px; }
+.bf-products-toolbar { flex-wrap: wrap; }
+
+@media (min-width: 560px) {
+  .bf-products-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+}
+
+@media (min-width: 768px) {
+  .bf-products-layout { flex-direction: row; align-items: flex-start; gap: 28px; }
+  .bf-products-sidebar { display: block; width: 220px; flex-shrink: 0; position: sticky; top: 76px; }
+  .bf-products-pills { display: none; }
+  .bf-products-header-pad { padding: 40px 28px 32px; }
+  .bf-products-body-pad { padding: 24px 28px; }
+}
+
+@media (min-width: 1024px) {
+  .bf-products-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .bf-products-sidebar { width: 240px; }
+  .bf-products-header-pad { padding: 48px 40px 36px; }
+  .bf-products-body-pad { padding: 28px 40px; }
+}
+`;
+
 export default function ProductsPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { addToCart } = useCart();
-  const { isMobile, width } = useResponsive();
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -60,8 +96,6 @@ export default function ProductsPage() {
   const [sort, setSort] = useState("featured");
   const [viewMode, setViewMode] = useState("grid");
   const [addedIds, setAddedIds] = useState({});
-
-  const showSidebar = width >= 900;
 
   useEffect(() => {
     Promise.all([api.get("/products"), api.get("/categories")])
@@ -85,8 +119,6 @@ export default function ProductsPage() {
       return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
     });
 
-  const cols = width < 500 ? 2 : width < 900 ? 3 : width < 1200 ? 3 : 4;
-
   const handleAdd = (e, product) => {
     e.stopPropagation();
     addToCart(product);
@@ -106,15 +138,16 @@ export default function ProductsPage() {
 
   return (
     <PageWrapper>
+      <style>{PRODUCTS_CSS}</style>
+
       {/* ── Page Header ── */}
       <div
+        className="bf-products-header-pad"
         style={{
           background: "linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)",
-          padding: isMobile ? "32px 20px 28px" : "48px 40px 36px",
         }}
       >
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
-          {/* Breadcrumb */}
           <div
             style={{
               display: "flex",
@@ -154,7 +187,7 @@ export default function ProductsPage() {
               <h1
                 style={{
                   fontFamily: "Syne, sans-serif",
-                  fontSize: isMobile ? "28px" : "36px",
+                  fontSize: "clamp(24px, 5vw, 36px)",
                   fontWeight: 800,
                   color: "white",
                   marginBottom: "6px",
@@ -174,7 +207,6 @@ export default function ProductsPage() {
               </p>
             </div>
 
-            {/* Search bar in header */}
             <div
               style={{
                 display: "flex",
@@ -184,8 +216,8 @@ export default function ProductsPage() {
                 borderRadius: "14px",
                 padding: "10px 16px",
                 border: "1px solid rgba(255,255,255,0.2)",
-                backdropFilter: "blur(8px)",
-                minWidth: isMobile ? "100%" : "300px",
+                width: "100%",
+                maxWidth: "340px",
               }}
             >
               <span style={{ opacity: 0.6, fontSize: "16px" }}>🔍</span>
@@ -195,6 +227,7 @@ export default function ProductsPage() {
                 placeholder="Search rice, tomatoes, palm oil..."
                 style={{
                   flex: 1,
+                  minWidth: 0,
                   border: "none",
                   outline: "none",
                   backgroundColor: "transparent",
@@ -223,211 +256,183 @@ export default function ProductsPage() {
       </div>
 
       <div
-        style={{
-          maxWidth: "1280px",
-          margin: "0 auto",
-          padding: isMobile ? "16px" : "28px 40px",
-        }}
+        className="bf-products-body-pad"
+        style={{ maxWidth: "1280px", margin: "0 auto" }}
       >
-        {/* Mobile category pills */}
-        {!showSidebar && (
-          <div style={{ marginBottom: "16px" }}>
+        {/* Mobile category pills (<768px only) */}
+        <div
+          className="bf-products-pills"
+          style={{
+            gap: "8px",
+            overflowX: "auto",
+            paddingBottom: "12px",
+            marginBottom: "4px",
+            scrollSnapType: "x proximity",
+          }}
+        >
+          {cats.map((cat) => (
+            <motion.button
+              key={cat}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveCat(cat)}
+              style={{
+                flexShrink: 0,
+                scrollSnapAlign: "start",
+                padding: "7px 16px",
+                borderRadius: "50px",
+                fontSize: "13px",
+                fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "Nunito, sans-serif",
+                backgroundColor: activeCat === cat ? "#1B4332" : "white",
+                color: activeCat === cat ? "white" : "#4B5563",
+                boxShadow:
+                  activeCat === cat
+                    ? "0 4px 12px rgba(27,67,50,0.3)"
+                    : "0 1px 4px rgba(0,0,0,0.1)",
+              }}
+            >
+              {cat === "All" ? "🌿 All Products" : cat}
+            </motion.button>
+          ))}
+        </div>
+
+        <div className="bf-products-layout">
+          {/* ── Sidebar (>=768px) ── */}
+          <div className="bf-products-sidebar">
             <div
               style={{
-                display: "flex",
-                gap: "8px",
-                overflowX: "auto",
-                paddingBottom: "4px",
+                backgroundColor: "white",
+                borderRadius: "20px",
+                padding: "20px",
+                boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+                marginBottom: "16px",
+                border: "1px solid #F3F4F6",
               }}
-              className="no-scroll"
             >
-              {cats.map((cat) => (
-                <motion.button
-                  key={cat}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveCat(cat)}
-                  style={{
-                    flexShrink: 0,
-                    padding: "7px 16px",
-                    borderRadius: "50px",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: "Nunito, sans-serif",
-                    backgroundColor: activeCat === cat ? "#1B4332" : "white",
-                    color: activeCat === cat ? "white" : "#4B5563",
-                    boxShadow:
-                      activeCat === cat
-                        ? "0 4px 12px rgba(27,67,50,0.3)"
-                        : "0 1px 4px rgba(0,0,0,0.1)",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {cat === "All" ? "🌿 All Products" : cat}
-                </motion.button>
-              ))}
+              <h3
+                style={{
+                  fontFamily: "Syne, sans-serif",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: "#111827",
+                  marginBottom: "14px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                }}
+              >
+                Categories
+              </h3>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+              >
+                {cats.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCat(cat)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: "10px",
+                      border: "none",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontSize: "14px",
+                      fontFamily: "Nunito, sans-serif",
+                      fontWeight: activeCat === cat ? 700 : 500,
+                      backgroundColor:
+                        activeCat === cat ? "#D8F3DC" : "transparent",
+                      color: activeCat === cat ? "#1B4332" : "#4B5563",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (activeCat !== cat)
+                        e.currentTarget.style.backgroundColor = "#F9FAFB";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeCat !== cat)
+                        e.currentTarget.style.backgroundColor = "transparent";
+                    }}
+                  >
+                    <span>{cat === "All" ? "🌿 All Products" : cat}</span>
+                    {activeCat === cat && (
+                      <span style={{ fontSize: "12px", color: "#40916C" }}>
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: "white",
+                borderRadius: "20px",
+                padding: "20px",
+                boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+                border: "1px solid #F3F4F6",
+              }}
+            >
+              <h3
+                style={{
+                  fontFamily: "Syne, sans-serif",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: "#111827",
+                  marginBottom: "14px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                }}
+              >
+                Sort By
+              </h3>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+              >
+                {[
+                  { value: "featured", label: "⭐ Featured" },
+                  { value: "price-asc", label: "↑ Price: Low to High" },
+                  { value: "price-desc", label: "↓ Price: High to Low" },
+                  { value: "name", label: "🔤 Name A → Z" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setSort(opt.value)}
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: "10px",
+                      border: "none",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontSize: "14px",
+                      fontFamily: "Nunito, sans-serif",
+                      fontWeight: sort === opt.value ? 700 : 500,
+                      backgroundColor:
+                        sort === opt.value ? "#D8F3DC" : "transparent",
+                      color: sort === opt.value ? "#1B4332" : "#4B5563",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        )}
-
-        <div style={{ display: "flex", gap: "28px", alignItems: "flex-start" }}>
-          {/* ── Sidebar ── */}
-          {showSidebar && (
-            <div
-              style={{
-                width: "240px",
-                flexShrink: 0,
-                position: "sticky",
-                top: "84px",
-              }}
-            >
-              {/* Categories */}
-              <div
-                style={{
-                  backgroundColor: "white",
-                  borderRadius: "20px",
-                  padding: "20px",
-                  boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-                  marginBottom: "16px",
-                  border: "1px solid #F3F4F6",
-                }}
-              >
-                <h3
-                  style={{
-                    fontFamily: "Syne, sans-serif",
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    color: "#111827",
-                    marginBottom: "14px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.8px",
-                  }}
-                >
-                  Categories
-                </h3>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                  }}
-                >
-                  {cats.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setActiveCat(cat)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        width: "100%",
-                        padding: "9px 12px",
-                        borderRadius: "10px",
-                        border: "none",
-                        cursor: "pointer",
-                        textAlign: "left",
-                        fontSize: "14px",
-                        fontFamily: "Nunito, sans-serif",
-                        fontWeight: activeCat === cat ? 700 : 500,
-                        backgroundColor:
-                          activeCat === cat ? "#D8F3DC" : "transparent",
-                        color: activeCat === cat ? "#1B4332" : "#4B5563",
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (activeCat !== cat)
-                          e.currentTarget.style.backgroundColor = "#F9FAFB";
-                      }}
-                      onMouseLeave={(e) => {
-                        if (activeCat !== cat)
-                          e.currentTarget.style.backgroundColor = "transparent";
-                      }}
-                    >
-                      <span>{cat === "All" ? "🌿 All Products" : cat}</span>
-                      {activeCat === cat && (
-                        <span style={{ fontSize: "12px", color: "#40916C" }}>
-                          ✓
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sort */}
-              <div
-                style={{
-                  backgroundColor: "white",
-                  borderRadius: "20px",
-                  padding: "20px",
-                  boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-                  border: "1px solid #F3F4F6",
-                }}
-              >
-                <h3
-                  style={{
-                    fontFamily: "Syne, sans-serif",
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    color: "#111827",
-                    marginBottom: "14px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.8px",
-                  }}
-                >
-                  Sort By
-                </h3>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                  }}
-                >
-                  {[
-                    { value: "featured", label: "⭐ Featured" },
-                    { value: "price-asc", label: "↑ Price: Low to High" },
-                    { value: "price-desc", label: "↓ Price: High to Low" },
-                    { value: "name", label: "🔤 Name A → Z" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setSort(opt.value)}
-                      style={{
-                        width: "100%",
-                        padding: "9px 12px",
-                        borderRadius: "10px",
-                        border: "none",
-                        cursor: "pointer",
-                        textAlign: "left",
-                        fontSize: "14px",
-                        fontFamily: "Nunito, sans-serif",
-                        fontWeight: sort === opt.value ? 700 : 500,
-                        backgroundColor:
-                          sort === opt.value ? "#D8F3DC" : "transparent",
-                        color: sort === opt.value ? "#1B4332" : "#4B5563",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* ── Products Grid ── */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            {/* Toolbar */}
             <div
+              className="bf-products-toolbar"
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
                 marginBottom: "20px",
-                flexWrap: "wrap",
                 gap: "10px",
               }}
             >
@@ -439,7 +444,6 @@ export default function ProductsPage() {
                   flexWrap: "wrap",
                 }}
               >
-                {/* Active filter tag */}
                 {activeCat !== "All" && (
                   <div
                     style={{
@@ -504,7 +508,6 @@ export default function ProductsPage() {
                 )}
               </div>
 
-              {/* Mobile sort + view toggle */}
               <div
                 style={{
                   display: "flex",
@@ -513,28 +516,28 @@ export default function ProductsPage() {
                   marginLeft: "auto",
                 }}
               >
-                {!showSidebar && (
-                  <select
-                    value={sort}
-                    onChange={(e) => setSort(e.target.value)}
-                    style={{
-                      padding: "8px 12px",
-                      border: "1px solid #E5E7EB",
-                      borderRadius: "10px",
-                      fontSize: "13px",
-                      color: "#4B5563",
-                      outline: "none",
-                      backgroundColor: "white",
-                      fontFamily: "Nunito, sans-serif",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="featured">Featured</option>
-                    <option value="price-asc">Price ↑</option>
-                    <option value="price-desc">Price ↓</option>
-                    <option value="name">A → Z</option>
-                  </select>
-                )}
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="bf-products-pills"
+                  style={{
+                    padding: "8px 12px",
+                    border: "1px solid #E5E7EB",
+                    borderRadius: "10px",
+                    fontSize: "13px",
+                    color: "#4B5563",
+                    outline: "none",
+                    backgroundColor: "white",
+                    fontFamily: "Nunito, sans-serif",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                  }}
+                >
+                  <option value="featured">Featured</option>
+                  <option value="price-asc">Price ↑</option>
+                  <option value="price-desc">Price ↓</option>
+                  <option value="name">A → Z</option>
+                </select>
                 {["grid", "list"].map((mode) => (
                   <button
                     key={mode}
@@ -551,6 +554,7 @@ export default function ProductsPage() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
+                      flexShrink: 0,
                     }}
                   >
                     {mode === "grid" ? "⊞" : "≡"}
@@ -559,15 +563,8 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            {/* Loading skeletons */}
             {loading ? (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                  gap: "16px",
-                }}
-              >
+              <div className="bf-products-grid">
                 {[...Array(8)].map((_, i) => (
                   <div
                     key={i}
@@ -578,7 +575,7 @@ export default function ProductsPage() {
                       boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
                     }}
                   >
-                    <div className="skeleton" style={{ height: "200px" }} />
+                    <div className="skeleton" style={{ height: "160px" }} />
                     <div style={{ padding: "16px" }}>
                       <div
                         className="skeleton"
@@ -604,17 +601,17 @@ export default function ProductsPage() {
               <div
                 style={{
                   textAlign: "center",
-                  padding: "80px 20px",
+                  padding: "60px 20px",
                   backgroundColor: "white",
                   borderRadius: "24px",
                   boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                 }}
               >
-                <div style={{ fontSize: "64px", marginBottom: "16px" }}>🌾</div>
+                <div style={{ fontSize: "56px", marginBottom: "16px" }}>🌾</div>
                 <h3
                   style={{
                     fontFamily: "Syne, sans-serif",
-                    fontSize: "20px",
+                    fontSize: "18px",
                     fontWeight: 700,
                     marginBottom: "8px",
                   }}
@@ -645,14 +642,7 @@ export default function ProductsPage() {
                 </button>
               </div>
             ) : viewMode === "grid" ? (
-              /* GRID VIEW */
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                  gap: "16px",
-                }}
-              >
+              <div className="bf-products-grid">
                 {filtered.map((product, i) => (
                   <ProductCard
                     key={product.id}
@@ -665,7 +655,6 @@ export default function ProductsPage() {
                 ))}
               </div>
             ) : (
-              /* LIST VIEW */
               <div
                 style={{
                   display: "flex",
@@ -683,29 +672,20 @@ export default function ProductsPage() {
                     style={{
                       backgroundColor: "white",
                       borderRadius: "16px",
-                      padding: "14px 18px",
+                      padding: "12px 14px",
                       display: "flex",
                       alignItems: "center",
-                      gap: "16px",
+                      gap: "12px",
                       cursor: "pointer",
                       boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
                       border: "1px solid #F3F4F6",
-                      transition: "all 0.2s",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.boxShadow =
-                        "0 6px 24px rgba(0,0,0,0.1)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.boxShadow =
-                        "0 2px 12px rgba(0,0,0,0.06)")
-                    }
                   >
                     <div
                       style={{
-                        width: "72px",
-                        height: "72px",
-                        borderRadius: "14px",
+                        width: "60px",
+                        height: "60px",
+                        borderRadius: "12px",
                         overflow: "hidden",
                         flexShrink: 0,
                       }}
@@ -723,7 +703,7 @@ export default function ProductsPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p
                         style={{
-                          fontSize: "12px",
+                          fontSize: "11px",
                           color: "#9CA3AF",
                           marginBottom: "2px",
                         }}
@@ -733,14 +713,17 @@ export default function ProductsPage() {
                       <p
                         style={{
                           fontWeight: 700,
-                          fontSize: "15px",
+                          fontSize: "14px",
                           color: "#111827",
                           marginBottom: "2px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {product.name}
                       </p>
-                      <p style={{ fontSize: "13px", color: "#9CA3AF" }}>
+                      <p style={{ fontSize: "12px", color: "#9CA3AF" }}>
                         {product.unit}
                       </p>
                     </div>
@@ -748,7 +731,7 @@ export default function ProductsPage() {
                       <p
                         style={{
                           fontWeight: 800,
-                          fontSize: "17px",
+                          fontSize: "15px",
                           color: "#1B4332",
                           marginBottom: "8px",
                         }}
@@ -765,12 +748,11 @@ export default function ProductsPage() {
                           color: "white",
                           border: "none",
                           borderRadius: "10px",
-                          padding: "8px 16px",
+                          padding: "7px 14px",
                           fontWeight: 700,
                           cursor: "pointer",
-                          fontSize: "13px",
+                          fontSize: "12px",
                           fontFamily: "Nunito, sans-serif",
-                          transition: "background-color 0.3s",
                         }}
                       >
                         {addedIds[product.id] ? "✓ Added" : "+ Add"}
@@ -800,7 +782,7 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
       onClick={onClick}
       style={{
         backgroundColor: "white",
-        borderRadius: "20px",
+        borderRadius: "16px",
         overflow: "hidden",
         cursor: "pointer",
         boxShadow: hovered
@@ -811,11 +793,10 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
         transform: hovered ? "translateY(-4px)" : "none",
       }}
     >
-      {/* Image */}
       <div
         style={{
           position: "relative",
-          height: "180px",
+          paddingTop: "75%",
           overflow: "hidden",
           backgroundColor: "#F9FAFB",
         }}
@@ -824,6 +805,8 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
           src={getProductImage(product)}
           alt={product.name}
           style={{
+            position: "absolute",
+            inset: 0,
             width: "100%",
             height: "100%",
             objectFit: "cover",
@@ -832,7 +815,6 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
           }}
         />
 
-        {/* Overlay on hover */}
         <div
           style={{
             position: "absolute",
@@ -848,10 +830,10 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
           <span
             style={{
               color: "white",
-              fontSize: "13px",
+              fontSize: "12px",
               fontWeight: 700,
               backgroundColor: "rgba(0,0,0,0.4)",
-              padding: "6px 14px",
+              padding: "5px 12px",
               borderRadius: "50px",
             }}
           >
@@ -859,18 +841,17 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
           </span>
         </div>
 
-        {/* TOP badge */}
         {product.is_featured && (
           <div
             style={{
               position: "absolute",
-              top: "10px",
-              left: "10px",
+              top: "8px",
+              left: "8px",
               backgroundColor: "#F59E0B",
               color: "white",
-              fontSize: "11px",
+              fontSize: "10px",
               fontWeight: 800,
-              padding: "3px 10px",
+              padding: "3px 9px",
               borderRadius: "50px",
               display: "flex",
               alignItems: "center",
@@ -881,18 +862,16 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
           </div>
         )}
 
-        {/* Category pill */}
         <div
           style={{
             position: "absolute",
-            bottom: "10px",
-            left: "10px",
+            bottom: "8px",
+            left: "8px",
             backgroundColor: "rgba(0,0,0,0.55)",
-            backdropFilter: "blur(4px)",
             color: "white",
-            fontSize: "11px",
+            fontSize: "10px",
             fontWeight: 600,
-            padding: "3px 10px",
+            padding: "3px 9px",
             borderRadius: "50px",
           }}
         >
@@ -900,21 +879,24 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
         </div>
       </div>
 
-      {/* Info */}
-      <div style={{ padding: "14px 16px" }}>
+      <div style={{ padding: "12px 14px" }}>
         <h3
           style={{
             fontFamily: "Syne, sans-serif",
             fontWeight: 700,
-            fontSize: "15px",
+            fontSize: "14px",
             color: "#111827",
             marginBottom: "2px",
             lineHeight: 1.3,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
           }}
         >
           {product.name}
         </h3>
-        <p style={{ fontSize: "12px", color: "#9CA3AF", marginBottom: "12px" }}>
+        <p style={{ fontSize: "11px", color: "#9CA3AF", marginBottom: "10px" }}>
           {product.unit}
         </p>
 
@@ -923,14 +905,19 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            gap: "8px",
           }}
         >
           <p
             style={{
               fontFamily: "Syne, sans-serif",
               fontWeight: 800,
-              fontSize: "18px",
+              fontSize: "16px",
               color: "#1B4332",
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
             ₦{(product.price * 1500).toLocaleString()}
@@ -940,20 +927,20 @@ function ProductCard({ product, index, added, onAdd, onClick }) {
             whileTap={{ scale: 0.9 }}
             onClick={(e) => onAdd(e, product)}
             style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "10px",
+              width: "32px",
+              height: "32px",
+              borderRadius: "9px",
               border: "none",
               cursor: "pointer",
               backgroundColor: added ? "#40916C" : "#F59E0B",
               color: "white",
-              fontSize: "18px",
+              fontSize: "16px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontWeight: 700,
+              flexShrink: 0,
               boxShadow: `0 4px 12px ${added ? "rgba(64,145,108,0.4)" : "rgba(245,158,11,0.4)"}`,
-              transition: "all 0.3s",
             }}
           >
             {added ? "✓" : "+"}
