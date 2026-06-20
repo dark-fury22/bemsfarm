@@ -2,124 +2,245 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import PageWrapper from "../components/layout/PageWrapper";
 import { useCart } from "../context/CartContext";
-import { useResponsive } from "../hooks/useResponsive";
 import { useState, useEffect } from "react";
 import api from "../services/api";
 
-const mockOrders = {
-  "BF-A1B2C3D4": {
-    id: "BF-A1B2C3D4",
-    date: "2026-05-07",
-    status: "delivered",
-    address: "15C West 42nd Street, Lagos",
-    items: [
-      { name: "Palm Oil", qty: 2, price: 4800 },
-      { name: "Garri (White)", qty: 1, price: 1350 },
-      { name: "Fresh Tomatoes", qty: 2, price: 1800 },
-    ],
-    delivery: 0,
-  },
-  "BF-E5F6G7H8": {
-    id: "BF-E5F6G7H8",
-    date: "2026-05-06",
-    status: "confirmed",
-    address: "15C West 42nd Street, Lagos",
-    items: [
-      { name: "Ofada Rice", qty: 2, price: 3750 },
-      { name: "Black-eyed Beans", qty: 1, price: 2400 },
-    ],
-    delivery: 1500,
-  },
-  "BF-I9J0K1L2": {
-    id: "BF-I9J0K1L2",
-    date: "2026-05-05",
-    status: "pending",
-    address: "15C West 42nd Street, Lagos",
-    items: [
-      { name: "Groundnut Oil", qty: 3, price: 6750 },
-      { name: "Dried Crayfish", qty: 1, price: 7500 },
-    ],
-    delivery: 0,
-  },
-};
+/*
+  ── BUG FIX ──────────────────────────────────────────────────
+  This page used to read from a hardcoded `mockOrders` object with
+  only 3 fake IDs, and silently fell back to the FIRST mock order
+  whenever a real order ID wasn't found in that fake list:
+
+      const order = mockOrders[id] || Object.values(mockOrders)[0]
+
+  That's why clicking into ANY real order (e.g. "BF-MQM20HLE")
+  always showed the same unrelated order — the fallback masked the
+  fact that the real order was never being fetched at all.
+
+  Fixed by calling the new GET /orders/:id endpoint and removing
+  the mock data + silent fallback entirely. A genuinely missing or
+  inaccessible order now shows a clear "not found" state instead of
+  someone else's data.
+*/
 
 const statusConfig = {
-  pending: {
+  pending: { color: "#E65100", bg: "#FFF3E0", label: "Pending", icon: "⏳" },
+  order_placed: {
     color: "#E65100",
     bg: "#FFF3E0",
-    label: "Pending",
-    icon: "⏳",
-    step: 1,
+    label: "Order Placed",
+    icon: "📋",
   },
   confirmed: {
     color: "#1565C0",
     bg: "#E3F2FD",
     label: "Confirmed",
     icon: "✅",
-    step: 2,
+  },
+  being_packed: {
+    color: "#6A1B9A",
+    bg: "#F3E5F5",
+    label: "Being Packed",
+    icon: "📦",
+  },
+  out_for_delivery: {
+    color: "#00838F",
+    bg: "#E0F7FA",
+    label: "Out for Delivery",
+    icon: "🚚",
   },
   delivered: {
     color: "#2E7D32",
     bg: "#E8F5E9",
     label: "Delivered",
-    icon: "📦",
-    step: 4,
+    icon: "🎉",
+  },
+  cancelled: {
+    color: "#C62828",
+    bg: "#FFEBEE",
+    label: "Cancelled",
+    icon: "❌",
   },
 };
+
+const trackingSteps = [
+  { key: "order_placed", label: "Order Placed", icon: "📋" },
+  { key: "confirmed", label: "Confirmed", icon: "✅" },
+  { key: "being_packed", label: "Being Packed", icon: "📦" },
+  { key: "out_for_delivery", label: "Out for Delivery", icon: "🚚" },
+  { key: "delivered", label: "Delivered", icon: "🎉" },
+];
+
+function getFoodEmoji(name) {
+  const map = {
+    "Palm Oil": "🛢️",
+    "Garri (White)": "🍚",
+    "Garri (Yellow)": "🟡",
+    "Fresh Tomatoes": "🍅",
+    "Ofada Rice": "🌾",
+    "Black-eyed Beans": "⚫",
+    "Groundnut Oil": "🥜",
+    "Dried Crayfish": "🦐",
+  };
+  return map[name] || "🛒";
+}
 
 export default function OrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const order = mockOrders[id] || Object.values(mockOrders)[0];
-  const s = statusConfig[order.status];
-  const subtotal = order.items.reduce((acc, i) => acc + i.price * i.qty, 0);
   const { addToCart } = useCart();
-  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
-    useResponsive();
+
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [reordering, setReordering] = useState(false);
 
-  const trackingSteps = [
-    { key: "pending", label: "Order Placed", icon: "📋" },
-    { key: "confirmed", label: "Confirmed", icon: "✅" },
-    { key: "packed", label: "Being Packed", icon: "📦" },
-    { key: "delivery", label: "Out for Delivery", icon: "🚚" },
-    { key: "delivered", label: "Delivered", icon: "🎉" },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setNotFound(false);
+
+    api
+      .get(`/orders/${id}`)
+      .then((res) => {
+        if (!cancelled) setOrder(res.data.order);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err?.response?.status === 404) {
+          setNotFound(true);
+        } else {
+          console.error("Failed to load order:", err.message);
+          setNotFound(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <PageWrapper>
+        <div
+          style={{
+            minHeight: "60vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "12px",
+          }}
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            style={{ fontSize: "40px" }}
+          >
+            ⏳
+          </motion.div>
+          <p style={{ color: "#9AA0A6", fontSize: "14px" }}>
+            Loading order details...
+          </p>
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  if (notFound || !order) {
+    return (
+      <PageWrapper>
+        <div
+          style={{
+            minHeight: "60vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "16px",
+            padding: "40px 20px",
+            textAlign: "center",
+          }}
+        >
+          <span style={{ fontSize: "56px" }}>🔍</span>
+          <h2
+            style={{
+              fontSize: "20px",
+              fontWeight: 800,
+              color: "#202124",
+              margin: 0,
+            }}
+          >
+            Order not found
+          </h2>
+          <p style={{ color: "#9AA0A6", margin: 0 }}>
+            We couldn't find an order with ID #{id}
+          </p>
+          <button
+            onClick={() => navigate("/orders")}
+            style={{
+              padding: "12px 28px",
+              background: "#2E7D32",
+              color: "white",
+              border: "none",
+              borderRadius: "10px",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontSize: "14px",
+            }}
+          >
+            ← Back to My Orders
+          </button>
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  const s =
+    statusConfig[order.tracking_status] ||
+    statusConfig[order.status] ||
+    statusConfig.pending;
+  const items = order.items || [];
+  const subtotal = items.reduce(
+    (acc, i) => acc + Number(i.price) * 1500 * i.quantity,
+    0,
+  );
+  const delivery = order.delivery === 0 || subtotal > 15000 ? 0 : 500;
+  const orderDate = order.created_at
+    ? new Date(order.created_at).toLocaleDateString("en-NG", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "";
 
   const currentStepIndex = trackingSteps.findIndex(
-    (step) => step.key === order.status,
+    (step) => step.key === order.tracking_status,
   );
 
   const handleReorder = async () => {
     setReordering(true);
     try {
-      // Fetch all products to get full product objects
       const res = await api.get("/products");
       const allProducts = res.data.products;
 
-      order.items.forEach((item) => {
-        const product = allProducts.find((p) => p.name === item.name);
+      items.forEach((item) => {
+        const product = allProducts.find(
+          (p) => p.id === item.product_id || p.name === item.name,
+        );
         if (product) {
-          for (let i = 0; i < item.qty; i++) {
+          for (let i = 0; i < item.quantity; i++) {
             addToCart(product);
           }
         }
       });
       navigate("/cart");
     } catch (err) {
-      // Fallback: add with basic info
-      order.items.forEach((item) => {
-        for (let i = 0; i < item.qty; i++) {
-          addToCart({
-            id: Math.random(),
-            name: item.name,
-            price: item.price / 1500,
-            unit: "1kg",
-            category_name: "Food",
-          });
-        }
-      });
-      navigate("/cart");
+      console.error("Reorder failed:", err.message);
     } finally {
       setReordering(false);
     }
@@ -182,7 +303,7 @@ export default function OrderDetailPage() {
           <div>
             <h1
               style={{
-                fontSize: "24px",
+                fontSize: "clamp(20px, 4vw, 24px)",
                 fontWeight: 800,
                 color: "#202124",
                 marginBottom: "4px",
@@ -191,7 +312,7 @@ export default function OrderDetailPage() {
               Order #{order.id}
             </h1>
             <p style={{ color: "#9AA0A6", fontSize: "14px" }}>
-              Placed on {order.date}
+              Placed on {orderDate}
             </p>
           </div>
           <span
@@ -208,84 +329,119 @@ export default function OrderDetailPage() {
           </span>
         </div>
 
-        {/* Tracking Steps */}
-        <div
-          style={{
-            backgroundColor: "white",
-            borderRadius: "16px",
-            padding: "24px",
-            border: "1px solid #E8EAED",
-            marginBottom: "20px",
-          }}
-        >
-          <h3
-            style={{ fontSize: "16px", fontWeight: 700, marginBottom: "20px" }}
+        {/* Tracking Steps — only show if not cancelled */}
+        {order.status !== "cancelled" && (
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "16px",
+              padding: "24px",
+              border: "1px solid #E8EAED",
+              marginBottom: "20px",
+              overflowX: "auto",
+            }}
           >
-            Order Tracking
-          </h3>
-
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            {trackingSteps.map((step, i) => {
-              const done = i <= currentStepIndex;
-              const current = i === currentStepIndex;
-
-              return (
-                <div key={step.key} style={{ flex: 1, textAlign: "center" }}>
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: i * 0.1 }}
-                    style={{
-                      width: "40px",
-                      height: "40px",
-                      borderRadius: "50%",
-                      margin: "0 auto",
-                      backgroundColor: done ? "#2E7D32" : "#F1F3F4",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "18px",
-                      border: current ? "2px solid #4CAF50" : "none",
-                      boxShadow: current
-                        ? "0 0 0 4px rgba(76,175,80,0.2)"
-                        : "none",
-                    }}
-                  >
-                    {step.icon}
-                  </motion.div>
-
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      marginTop: "8px",
-                      fontWeight: done ? 700 : 400,
-                      color: done ? "#2E7D32" : "#9AA0A6",
-                    }}
-                  >
-                    {step.label}
-                  </p>
-
-                  {i < trackingSteps.length - 1 && (
-                    <div
+            <h3
+              style={{
+                fontSize: "16px",
+                fontWeight: 700,
+                marginBottom: "20px",
+              }}
+            >
+              Order Tracking
+            </h3>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                minWidth: "420px",
+              }}
+            >
+              {trackingSteps.map((step, i) => {
+                const done = i <= currentStepIndex;
+                const current = i === currentStepIndex;
+                return (
+                  <div key={step.key} style={{ flex: 1, textAlign: "center" }}>
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: i * 0.1 }}
                       style={{
-                        height: "3px",
-                        backgroundColor:
-                          i < currentStepIndex ? "#2E7D32" : "#E8EAED",
-                        marginTop: "10px",
-                        borderRadius: "2px",
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "50%",
+                        margin: "0 auto",
+                        backgroundColor: done ? "#2E7D32" : "#F1F3F4",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "18px",
+                        border: current ? "2px solid #4CAF50" : "none",
+                        boxShadow: current
+                          ? "0 0 0 4px rgba(76,175,80,0.2)"
+                          : "none",
                       }}
-                    />
-                  )}
-                </div>
-              );
-            })}
+                    >
+                      {step.icon}
+                    </motion.div>
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        marginTop: "8px",
+                        fontWeight: done ? 700 : 400,
+                        color: done ? "#2E7D32" : "#9AA0A6",
+                      }}
+                    >
+                      {step.label}
+                    </p>
+                    {i < trackingSteps.length - 1 && (
+                      <div
+                        style={{
+                          height: "3px",
+                          backgroundColor:
+                            i < currentStepIndex ? "#2E7D32" : "#E8EAED",
+                          marginTop: "10px",
+                          borderRadius: "2px",
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
+
+        {order.status === "cancelled" && order.cancel_reason && (
+          <div
+            style={{
+              backgroundColor: "#FFEBEE",
+              border: "1px solid #FFCDD2",
+              borderRadius: "16px",
+              padding: "16px 20px",
+              marginBottom: "20px",
+            }}
+          >
+            <p
+              style={{
+                color: "#C62828",
+                fontWeight: 700,
+                fontSize: "14px",
+                marginBottom: "4px",
+              }}
+            >
+              Order Cancelled
+            </p>
+            <p style={{ color: "#9AA0A6", fontSize: "13px", margin: 0 }}>
+              Reason: {order.cancel_reason}
+            </p>
+          </div>
+        )}
 
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1fr 340px",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
             gap: "20px",
           }}
         >
@@ -305,9 +461,9 @@ export default function OrderDetailPage() {
                 marginBottom: "16px",
               }}
             >
-              Order Items ({order.items.length})
+              Order Items ({items.length})
             </h3>
-            {order.items.map((item, i) => (
+            {items.map((item, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, x: -10 }}
@@ -320,11 +476,16 @@ export default function OrderDetailPage() {
                   paddingBottom: "14px",
                   marginBottom: "14px",
                   borderBottom:
-                    i < order.items.length - 1 ? "1px solid #F1F3F4" : "none",
+                    i < items.length - 1 ? "1px solid #F1F3F4" : "none",
                 }}
               >
                 <div
-                  style={{ display: "flex", alignItems: "center", gap: "12px" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    minWidth: 0,
+                  }}
                 >
                   <div
                     style={{
@@ -337,16 +498,39 @@ export default function OrderDetailPage() {
                       justifyContent: "center",
                       fontSize: "24px",
                       border: "1px solid #E8EAED",
+                      flexShrink: 0,
+                      overflow: "hidden",
                     }}
                   >
-                    {getFoodEmoji(item.name)}
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt={item.name}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    ) : (
+                      getFoodEmoji(item.name)
+                    )}
                   </div>
-                  <div>
-                    <p style={{ fontWeight: 600, fontSize: "15px" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p
+                      style={{
+                        fontWeight: 600,
+                        fontSize: "15px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {item.name}
                     </p>
                     <p style={{ fontSize: "13px", color: "#9AA0A6" }}>
-                      Qty: {item.qty} × ₦{item.price.toLocaleString()}
+                      Qty: {item.quantity} × ₦
+                      {(Number(item.price) * 1500).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -355,9 +539,11 @@ export default function OrderDetailPage() {
                     fontWeight: 800,
                     color: "#2E7D32",
                     fontSize: "16px",
+                    flexShrink: 0,
                   }}
                 >
-                  ₦{(item.price * item.qty).toLocaleString()}
+                  ₦
+                  {(Number(item.price) * 1500 * item.quantity).toLocaleString()}
                 </p>
               </motion.div>
             ))}
@@ -367,7 +553,6 @@ export default function OrderDetailPage() {
           <div
             style={{ display: "flex", flexDirection: "column", gap: "16px" }}
           >
-            {/* Summary */}
             <div
               style={{
                 backgroundColor: "white",
@@ -414,12 +599,10 @@ export default function OrderDetailPage() {
                 <span
                   style={{
                     fontWeight: 600,
-                    color: order.delivery === 0 ? "#2E7D32" : "#202124",
+                    color: delivery === 0 ? "#2E7D32" : "#202124",
                   }}
                 >
-                  {order.delivery === 0
-                    ? "Free 🎉"
-                    : `₦${order.delivery.toLocaleString()}`}
+                  {delivery === 0 ? "Free 🎉" : `₦${delivery.toLocaleString()}`}
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -431,12 +614,11 @@ export default function OrderDetailPage() {
                     color: "#2E7D32",
                   }}
                 >
-                  ₦{(subtotal + order.delivery).toLocaleString()}
+                  ₦{Number(order.total).toLocaleString()}
                 </span>
               </div>
             </div>
 
-            {/* Delivery Address */}
             <div
               style={{
                 backgroundColor: "white",
@@ -455,13 +637,17 @@ export default function OrderDetailPage() {
                 Delivery Address
               </h3>
               <p
-                style={{ fontSize: "14px", color: "#5F6368", lineHeight: 1.6 }}
+                style={{
+                  fontSize: "14px",
+                  color: "#5F6368",
+                  lineHeight: 1.6,
+                  margin: 0,
+                }}
               >
                 📍 {order.address}
               </p>
             </div>
 
-            {/* Actions */}
             <div
               style={{ display: "flex", flexDirection: "column", gap: "10px" }}
             >
@@ -498,7 +684,7 @@ export default function OrderDetailPage() {
                         }}
                       >
                         ⏳
-                      </motion.span>{" "}
+                      </motion.span>
                       Adding to cart...
                     </>
                   ) : (
@@ -529,17 +715,4 @@ export default function OrderDetailPage() {
       </div>
     </PageWrapper>
   );
-}
-
-function getFoodEmoji(name) {
-  const map = {
-    "Palm Oil": "🛢️",
-    "Garri (White)": "🍚",
-    "Fresh Tomatoes": "🍅",
-    "Ofada Rice": "🌾",
-    "Black-eyed Beans": "⚫",
-    "Groundnut Oil": "🥜",
-    "Dried Crayfish": "🦐",
-  };
-  return map[name] || "🛒";
 }
