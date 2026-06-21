@@ -3,12 +3,27 @@ const router = express.Router();
 const pool = require("../db/pool");
 
 // ═══════════════════════════════════════════════════════════════
-// PHASE 3: SEMANTIC SEARCH
+// PHASE 3: SEMANTIC SEARCH — now a real hybrid system
+//
+// BEFORE: a static 10-entry keyword dictionary. Anything outside
+// those exact phrases (e.g. "brunch", "spicy dinner", "party food")
+// returned zero results, despite being marketed as "semantic" search.
+//
+// AFTER: three-tier hybrid, in order of cost (cheapest/fastest first):
+//   1. Keyword dictionary match (instant, free, handles common cases)
+//   2. Direct product-name substring match (instant, free)
+//   3. Gemini AI fallback — ONLY when tiers 1-2 find nothing. Gemini
+//      is given the REAL product catalog and asked to pick which
+//      actual products fit the query's intent. It is explicitly
+//      constrained to only return product names that exist in the
+//      list it was given — its raw response is then validated against
+//      the real catalog server-side, so a hallucinated product name
+//      can never reach the user or be "addable" to cart with no real ID.
 // ═══════════════════════════════════════════════════════════════
 
 const SEMANTIC_CATEGORIES = {
   "cooking oil": ["palm oil", "groundnut oil", "oil"],
-  "breakfast food": ["garri", "beans", "oatmeal", "oat"],
+  "breakfast food": ["garri", "beans", "oatmeal", "oat", "egg"],
   "soup ingredients": [
     "tomatoes",
     "onion",
@@ -26,6 +41,77 @@ const SEMANTIC_CATEGORIES = {
   "nigerian staples": ["rice", "garri", "beans", "palm oil", "yam"],
 };
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+async function getAiProductMatches(query, allProducts) {
+  if (!GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY not configured");
+  }
+
+  // Give Gemini ONLY the product names it's allowed to choose from —
+  // this is what makes hallucination impossible to act on, even if
+  // the model tries: anything it returns gets filtered against this
+  // exact list before it's ever sent back to the user.
+  const catalogNames = allProducts.map((p) => p.name);
+
+  const prompt = `A customer searched for: "${query}"
+
+Here is the FULL product catalog available (these are the ONLY valid product names):
+${catalogNames.map((n) => `- ${n}`).join("\n")}
+
+Pick up to 8 products from the list above that would genuinely satisfy what the customer is looking for, based on meal type, cuisine, occasion, or food category they mentioned. Use real-world food knowledge (e.g. "brunch" suggests eggs, bread, garri-based meals; "spicy" suggests pepper-heavy items).
+
+Respond with ONLY a JSON array of product names copied EXACTLY as they appear in the list above. No explanation, no markdown, just the JSON array. If nothing in the catalog genuinely fits, respond with an empty array [].`;
+
+  const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 300, temperature: 0.3 },
+    }),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errBody}`);
+  }
+
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Gemini returned no text");
+
+  // Strip markdown code fences if Gemini wraps the JSON in them anyway
+  const cleaned = text
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/```\s*$/i, "");
+
+  let suggestedNames;
+  try {
+    suggestedNames = JSON.parse(cleaned);
+  } catch {
+    throw new Error(
+      "Gemini response was not valid JSON: " + cleaned.slice(0, 200),
+    );
+  }
+
+  if (!Array.isArray(suggestedNames)) {
+    throw new Error("Gemini response was not an array");
+  }
+
+  // ── VALIDATION GATE ──────────────────────────────────────────
+  // Only keep names that exactly match a real product in our catalog.
+  // Anything hallucinated gets silently dropped here, never reaching
+  // the response.
+  const catalogSet = new Set(catalogNames);
+  const validNames = suggestedNames.filter((name) => catalogSet.has(name));
+
+  return allProducts.filter((p) => validNames.includes(p.name));
+}
+
 router.post("/semantic-search", async (req, res) => {
   try {
     const { query } = req.body;
@@ -33,29 +119,57 @@ router.post("/semantic-search", async (req, res) => {
       return res.status(400).json({ message: "Search query required" });
 
     const queryLower = query.toLowerCase().trim();
-    const matched = Object.entries(SEMANTIC_CATEGORIES).find(
-      ([key]) => key.includes(queryLower) || queryLower.includes(key),
-    );
 
     const productsResult = await pool.query(
       `SELECT id, name, price, unit, COALESCE(stock, 100) as stock FROM products
        WHERE COALESCE(stock, 100) > 0 ORDER BY name ASC`,
     );
+    const allProducts = productsResult.rows;
 
     let results = [];
+    let matchTier = null;
+
+    // ── TIER 1: keyword dictionary (instant, free) ──────────────
+    const matched = Object.entries(SEMANTIC_CATEGORIES).find(
+      ([key]) => key.includes(queryLower) || queryLower.includes(key),
+    );
+
     if (matched) {
       const [, keywords] = matched;
-      results = productsResult.rows
+      results = allProducts
         .filter((p) =>
           keywords.some((kw) =>
             p.name.toLowerCase().includes(kw.toLowerCase()),
           ),
         )
         .slice(0, 12);
-    } else {
-      results = productsResult.rows
+      if (results.length) matchTier = "keyword-dictionary";
+    }
+
+    // ── TIER 2: direct product-name substring match (instant, free) ──
+    if (!results.length) {
+      results = allProducts
         .filter((p) => p.name.toLowerCase().includes(queryLower))
         .slice(0, 12);
+      if (results.length) matchTier = "direct-match";
+    }
+
+    // ── TIER 3: Gemini AI fallback (only when 1 & 2 found nothing) ──
+    if (!results.length) {
+      try {
+        console.log(
+          `🤖 No keyword/direct match for "${query}" — trying Gemini fallback`,
+        );
+        const aiMatches = await getAiProductMatches(query, allProducts);
+        if (aiMatches.length) {
+          results = aiMatches.slice(0, 8);
+          matchTier = "ai-reasoning";
+        }
+      } catch (aiErr) {
+        console.warn("⚠️ Gemini search fallback failed:", aiErr.message);
+        // Fall through to empty results — handled gracefully below,
+        // never crashes the request.
+      }
     }
 
     res.json({
@@ -67,6 +181,7 @@ router.post("/semantic-search", async (req, res) => {
         unit: p.unit,
         stock: p.stock,
       })),
+      match_tier: matchTier,
     });
   } catch (err) {
     console.error("Semantic search error:", err.message);
@@ -75,9 +190,7 @@ router.post("/semantic-search", async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// PHASE 4: DYNAMIC PRICING  — BUG FIXED
-// Bug was: querying order_items.created_at which may not exist
-// Fix: JOIN through orders table to get created_at
+// PHASE 4: DYNAMIC PRICING
 // ═══════════════════════════════════════════════════════════════
 
 const SEASONALITY_MULTIPLIERS = {
@@ -142,8 +255,6 @@ const SEASONALITY_MULTIPLIERS = {
 router.post("/dynamic-pricing", async (req, res) => {
   try {
     const { product_id } = req.body;
-    console.log("Dynamic pricing for product:", product_id);
-
     const result = await pool.query(
       `SELECT id, name, price, COALESCE(stock, 100) as stock FROM products WHERE id = $1`,
       [parseInt(product_id)],
@@ -160,7 +271,6 @@ router.post("/dynamic-pricing", async (req, res) => {
 
     let multiplier = 1.0;
 
-    // 1. Seasonality — match by partial name
     const nameLower = product.name.toLowerCase();
     const seasonalKey = Object.keys(SEASONALITY_MULTIPLIERS).find((k) =>
       nameLower.includes(k),
@@ -168,12 +278,10 @@ router.post("/dynamic-pricing", async (req, res) => {
     const seasonality = seasonalKey ? SEASONALITY_MULTIPLIERS[seasonalKey] : {};
     multiplier *= seasonality[currentMonth] || 1.0;
 
-    // 2. Inventory
     if (currentStock < 5) multiplier *= 1.3;
     else if (currentStock < 20) multiplier *= 1.15;
     else if (currentStock > 100) multiplier *= 0.95;
 
-    // 3. Demand — FIXED: join through orders not order_items.created_at
     let weeklySales = 0;
     try {
       const salesResult = await pool.query(
@@ -192,7 +300,6 @@ router.post("/dynamic-pricing", async (req, res) => {
     if (weeklySales > 50) multiplier *= 1.1;
     else if (weeklySales < 5) multiplier *= 0.9;
 
-    // Clamp
     multiplier = Math.min(Math.max(multiplier, 0.7), 1.5);
 
     const dynamicPrice = Math.round(basePrice * multiplier);

@@ -83,11 +83,11 @@ export default function HomePage() {
     },
     {
       bg: "linear-gradient(135deg, #7C3AED 0%, #C084FC 100%)",
-      title: "Up to 40% Off",
-      sub: "Save now, thank us later",
-      btn: "Claim Offer",
+      title: "Personalized For You",
+      sub: "AI-powered recommendations",
+      btn: "See Recommendations",
       img: "https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=200&q=80",
-      path: "/deals",
+      path: "/recommendations",
     },
   ];
 
