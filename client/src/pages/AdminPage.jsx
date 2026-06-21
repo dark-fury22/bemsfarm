@@ -4,12 +4,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
 import api from "../services/api";
-
+import logoImg from "../assets/bemsfarms_logo.png";
 const C = {
-  sidebar: "#0F172A",
+  sidebar: "#0F172A", // Dark navy (more modern than dark blue-purple)
   sidebarBorder: "rgba(255,255,255,0.07)",
-  primary: "#40916C",
-  accent: "#F59E0B",
+  primary: "#40916C", // Medium green
+  accent: "#F59E0B", // Amber
   danger: "#EF4444",
   text: "#111827",
   muted: "#9CA3AF",
@@ -256,41 +256,46 @@ export default function AdminPage() {
     ? [
         {
           label: "Total Revenue",
-          value: `₦${Number(stats.totalRevenue || 0).toLocaleString()}`,
+          // ── BUG FIX ──────────────────────────────────────────
+          // All four fields below now use `?? 0` as a safety net.
+          // The actual crash was caused by reading `stats.totalProducts`,
+          // a key that never exists in the backend response (see the
+          // last field for the real story) — but since `stats` itself
+          // is a real object once set, *any* of these four could break
+          // the same way if a backend field is ever renamed again.
+          // `?? 0` means a missing field renders "0" instead of
+          // throwing and white-screening the whole dashboard.
+          value: `₦${(stats.totalRevenue ?? 0).toLocaleString()}`,
           change: "Live",
           icon: "💰",
           color: "#2E7D32",
         },
         {
           label: "Total Orders",
-          value: Number(stats.totalOrders || 0).toLocaleString(),
+          value: (stats.totalOrders ?? 0).toLocaleString(),
           change: "Live",
           icon: "📦",
           color: "#1565C0",
         },
         {
           label: "Customers",
-          value: Number(stats.totalCustomers || 0).toLocaleString(),
+          value: (stats.totalCustomers ?? 0).toLocaleString(),
           change: "Live",
           icon: "👥",
           color: "#6A1B9A",
         },
         {
           label: "Products",
-          /*
-            ── BUG FIX ──────────────────────────────────────────
-            adminController.js's getStats() returns this field as
-            `activeProducts` (count of products with stock > 0),
-            never `totalProducts`. Reading stats.totalProducts here
-            returned undefined, and undefined.toLocaleString() threw
-            a TypeError — which crashed the WHOLE admin page to a
-            white screen right after the loading skeleton finished,
-            since nothing caught the error (no error boundary).
-            Fixed to read the real field name, with `|| 0` as a
-            second safety layer in case the backend shape changes
-            again in the future.
-          */
-          value: Number(stats.activeProducts || 0).toLocaleString(),
+          // ── THE ACTUAL CRASH ──────────────────────────────────
+          // server/src/controllers/adminController.js's getStats()
+          // returns this field as `activeProducts` (count of products
+          // with stock > 0) — there has never been a `totalProducts`
+          // key in the response. Reading stats.totalProducts returned
+          // `undefined`, and undefined.toLocaleString() threw
+          // immediately on render, crashing to a white screen about
+          // 1 second after the page loaded (the moment setStats()
+          // landed and triggered this re-render with the real data).
+          value: (stats.activeProducts ?? 0).toLocaleString(),
           change: "Live",
           icon: "🌾",
           color: "#E65100",
@@ -361,6 +366,7 @@ export default function AdminPage() {
               borderBottom: "1px solid rgba(255,255,255,0.08)",
             }}
           >
+            {/* Logo using just text + icon since the PNG has bg issues on dark */}
             <div
               style={{
                 display: "flex",
@@ -416,6 +422,7 @@ export default function AdminPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                // Replace the tab button styles in the sidebar:
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -909,8 +916,7 @@ export default function AdminPage() {
                                   color: C.primary,
                                 }}
                               >
-                                ₦
-                                {(Number(p.price || 0) * 1500).toLocaleString()}
+                                ₦{((p.price ?? 0) * 1500).toLocaleString()}
                               </p>
                               <p style={{ fontSize: "10px", color: C.muted }}>
                                 {p.total_sold || 0} sold
@@ -978,7 +984,7 @@ export default function AdminPage() {
                                 flexShrink: 0,
                               }}
                             >
-                              ₦{(Number(p.price || 0) * 1500).toLocaleString()}
+                              ₦{((p.price ?? 0) * 1500).toLocaleString()}
                             </p>
                           </div>
                         ))}
@@ -1144,7 +1150,8 @@ export default function AdminPage() {
                                   whiteSpace: "nowrap",
                                 }}
                               >
-                                ₦{Number(order.amount || 0).toLocaleString()}
+                                ₦
+                                {parseFloat(order.amount ?? 0).toLocaleString()}
                               </td>
                               <td style={{ padding: "14px 16px" }}>
                                 <span
@@ -1348,7 +1355,8 @@ export default function AdminPage() {
                                   whiteSpace: "nowrap",
                                 }}
                               >
-                                ₦{Number(order.amount || 0).toLocaleString()}
+                                ₦
+                                {parseFloat(order.amount ?? 0).toLocaleString()}
                               </td>
                               <td style={{ padding: "14px 16px" }}>
                                 <span
@@ -1584,7 +1592,7 @@ export default function AdminPage() {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          ₦{(Number(p.price || 0) * 1500).toLocaleString()}
+                          ₦{((p.price ?? 0) * 1500).toLocaleString()}
                         </td>
                         <td style={{ padding: "14px 16px" }}>
                           <span
@@ -2356,7 +2364,7 @@ export default function AdminPage() {
                   label: "Price (₦)",
                   key: "displayPrice",
                   type: "number",
-                  value: Math.round(editProduct.price * 1500),
+                  value: Math.round((editProduct.price ?? 0) * 1500),
                 },
                 { label: "Unit", key: "unit", type: "text" },
                 { label: "Stock", key: "stock", type: "number" },
@@ -2621,7 +2629,7 @@ export default function AdminPage() {
                 },
                 {
                   label: "Amount",
-                  value: `₦${Number(viewOrder.amount || 0).toLocaleString()}`,
+                  value: `₦${parseFloat(viewOrder.amount ?? 0).toLocaleString()}`,
                   green: true,
                 },
               ].map((row) => (
