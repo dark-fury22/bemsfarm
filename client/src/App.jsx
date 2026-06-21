@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -14,7 +14,6 @@ import OrderDetailPage from "./pages/OrderDetailPage";
 import ProfilePage from "./pages/ProfilePage";
 import AboutPage from "./pages/AboutPage";
 import ContactPage from "./pages/ContactPage";
-import DealsPage from "./pages/DealsPage";
 import AdminPage from "./pages/AdminPage";
 import ReturnsPage from "./pages/ReturnsPage";
 import RecommendationsPage from "./pages/RecommendationsPage";
@@ -24,6 +23,11 @@ import DynamicPricingPage from "./pages/DynamicPricingPage";
 import FraudDetectionPage from "./pages/FraudDetectionPage";
 import DemandForecastingPage from "./pages/DemandForecastingPage";
 import OnboardingPage from "./pages/OnboardingPage";
+
+// NOTE: DealsPage import removed — the Deals page has been retired
+// in favor of AI Recommendations. The route below 301-style redirects
+// anyone hitting the old /deals URL (bookmarks, old links, etc.)
+// straight to /recommendations so nothing breaks.
 
 const P = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
 
@@ -136,14 +140,13 @@ function App() {
             </P>
           }
         />
+
+        {/* Deals page retired — redirect old links to Recommendations */}
         <Route
           path="/deals"
-          element={
-            <P>
-              <DealsPage />
-            </P>
-          }
+          element={<Navigate to="/recommendations" replace />}
         />
+
         <Route
           path="/admin"
           element={

@@ -4,13 +4,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
 import api from "../services/api";
-import logoImg from "../assets/bemsfarms_logo.png";
 
 const C = {
-  sidebar: "#0F172A", // Dark navy (more modern than dark blue-purple)
+  sidebar: "#0F172A",
   sidebarBorder: "rgba(255,255,255,0.07)",
-  primary: "#40916C", // Medium green
-  accent: "#F59E0B", // Amber
+  primary: "#40916C",
+  accent: "#F59E0B",
   danger: "#EF4444",
   text: "#111827",
   muted: "#9CA3AF",
@@ -18,14 +17,12 @@ const C = {
   bg: "#F8FAFC",
   white: "#FFFFFF",
 };
-
 const statusColors = {
   delivered: { bg: "#E8F5E9", color: "#2E7D32" },
   pending: { bg: "#FFF3E0", color: "#E65100" },
   confirmed: { bg: "#E3F2FD", color: "#1565C0" },
   cancelled: { bg: "#FFEBEE", color: "#C62828" },
 };
-
 const tabs = [
   { id: "overview", label: "Overview", emoji: "📊" },
   { id: "orders", label: "Orders", emoji: "📦" },
@@ -34,7 +31,6 @@ const tabs = [
   { id: "subscribers", label: "Subscribers", emoji: "📧" },
   { id: "returns", label: "Returns", emoji: "↩️" },
 ];
-
 const mockCustomers = [
   {
     name: "Obisesan Esther",
@@ -65,13 +61,11 @@ const mockCustomers = [
     active: false,
   },
 ];
-
 export default function AdminPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
     useResponsive();
-
   const [products, setProducts] = useState([]);
   const [activeTab, setActiveTab] = useState("overview");
   const [editProduct, setEditProduct] = useState(null);
@@ -84,19 +78,16 @@ export default function AdminPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [subscribers, setSubscribers] = useState([]);
   const [returns, setReturns] = useState([]);
-
   // Real stats state
   const [stats, setStats] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
-
   // Image upload
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [addImagePreview, setAddImagePreview] = useState(null);
   const editImageRef = useRef(null);
   const addImageRef = useRef(null);
-
   // Add product form state
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -107,42 +98,34 @@ export default function AdminPage() {
     category_id: "1",
     is_featured: false,
   });
-
   useEffect(() => {
     let isMounted = true;
-
     const loadData = async () => {
       try {
         const [subscribersRes, returnsRes] = await Promise.all([
           api.get("/admin/subscribers"),
           api.get("/admin/returns"),
         ]);
-
         if (!isMounted) return;
-
         setSubscribers(subscribersRes.data.subscribers || []);
         setReturns(returnsRes.data.returns || []);
       } catch (err) {
         console.error("Admin data fetch error:", err);
       }
     };
-
     fetchProducts();
     fetchStats();
     loadData();
-
     return () => {
       isMounted = false;
     };
   }, []);
-
   const fetchProducts = () => {
     api
       .get("/products")
       .then((r) => setProducts(r.data.products))
       .catch(() => {});
   };
-
   const fetchStats = async () => {
     setStatsLoading(true);
     try {
@@ -156,7 +139,7 @@ export default function AdminPage() {
         totalRevenue: 0,
         totalOrders: 0,
         totalCustomers: 0,
-        totalProducts: products.length,
+        activeProducts: products.length,
       });
       setRecentOrders([]);
       setTopProducts([]);
@@ -164,7 +147,6 @@ export default function AdminPage() {
       setStatsLoading(false);
     }
   };
-
   const handleSaveProduct = async () => {
     if (!editProduct) return;
     setSaving(true);
@@ -203,7 +185,6 @@ export default function AdminPage() {
       setSaving(false);
     }
   };
-
   const handleDeleteProduct = async () => {
     if (!deleteProduct) return;
     try {
@@ -218,7 +199,6 @@ export default function AdminPage() {
       setTimeout(fetchProducts, 500);
     }
   };
-
   const handleAddProduct = async () => {
     if (!newProduct.name || !newProduct.price) {
       alert("Please fill in at least name and price");
@@ -250,7 +230,6 @@ export default function AdminPage() {
       setSaving(false);
     }
   };
-
   const handleEditImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -262,7 +241,6 @@ export default function AdminPage() {
     reader.onloadend = () => setEditImagePreview(reader.result);
     reader.readAsDataURL(file);
   };
-
   const handleAddImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -274,33 +252,45 @@ export default function AdminPage() {
     reader.onloadend = () => setAddImagePreview(reader.result);
     reader.readAsDataURL(file);
   };
-
   const statCards = stats
     ? [
         {
           label: "Total Revenue",
-          value: `₦${stats.totalRevenue.toLocaleString()}`,
+          value: `₦${Number(stats.totalRevenue || 0).toLocaleString()}`,
           change: "Live",
           icon: "💰",
           color: "#2E7D32",
         },
         {
           label: "Total Orders",
-          value: stats.totalOrders.toLocaleString(),
+          value: Number(stats.totalOrders || 0).toLocaleString(),
           change: "Live",
           icon: "📦",
           color: "#1565C0",
         },
         {
           label: "Customers",
-          value: stats.totalCustomers.toLocaleString(),
+          value: Number(stats.totalCustomers || 0).toLocaleString(),
           change: "Live",
           icon: "👥",
           color: "#6A1B9A",
         },
         {
           label: "Products",
-          value: stats.totalProducts.toLocaleString(),
+          /*
+            ── BUG FIX ──────────────────────────────────────────
+            adminController.js's getStats() returns this field as
+            `activeProducts` (count of products with stock > 0),
+            never `totalProducts`. Reading stats.totalProducts here
+            returned undefined, and undefined.toLocaleString() threw
+            a TypeError — which crashed the WHOLE admin page to a
+            white screen right after the loading skeleton finished,
+            since nothing caught the error (no error boundary).
+            Fixed to read the real field name, with `|| 0` as a
+            second safety layer in case the backend shape changes
+            again in the future.
+          */
+          value: Number(stats.activeProducts || 0).toLocaleString(),
           change: "Live",
           icon: "🌾",
           color: "#E65100",
@@ -336,12 +326,10 @@ export default function AdminPage() {
           color: "#E65100",
         },
       ];
-
   const filteredOrders =
     orderFilter === "All"
       ? recentOrders
       : recentOrders.filter((o) => o.status === orderFilter.toLowerCase());
-
   return (
     <div
       style={{
@@ -373,7 +361,6 @@ export default function AdminPage() {
               borderBottom: "1px solid rgba(255,255,255,0.08)",
             }}
           >
-            {/* Logo using just text + icon since the PNG has bg issues on dark */}
             <div
               style={{
                 display: "flex",
@@ -429,7 +416,6 @@ export default function AdminPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                // Replace the tab button styles in the sidebar:
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -534,7 +520,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-
       {/* Main Area */}
       <div
         style={{
@@ -619,7 +604,6 @@ export default function AdminPage() {
             </motion.button>
           </div>
         </div>
-
         <div style={{ padding: "24px" }}>
           {/* OVERVIEW */}
           {activeTab === "overview" && (
@@ -712,7 +696,6 @@ export default function AdminPage() {
                   </motion.div>
                 ))}
               </div>
-
               {/* Charts */}
               <div
                 style={{
@@ -816,7 +799,6 @@ export default function AdminPage() {
                     </div>
                   )}
                 </div>
-
                 <div
                   style={{
                     backgroundColor: "white",
@@ -927,7 +909,8 @@ export default function AdminPage() {
                                   color: C.primary,
                                 }}
                               >
-                                ₦{(p.price * 1500).toLocaleString()}
+                                ₦
+                                {(Number(p.price || 0) * 1500).toLocaleString()}
                               </p>
                               <p style={{ fontSize: "10px", color: C.muted }}>
                                 {p.total_sold || 0} sold
@@ -995,13 +978,12 @@ export default function AdminPage() {
                                 flexShrink: 0,
                               }}
                             >
-                              ₦{(p.price * 1500).toLocaleString()}
+                              ₦{(Number(p.price || 0) * 1500).toLocaleString()}
                             </p>
                           </div>
                         ))}
                 </div>
               </div>
-
               {/* Recent Orders — Real Data */}
               <div
                 style={{
@@ -1162,7 +1144,7 @@ export default function AdminPage() {
                                   whiteSpace: "nowrap",
                                 }}
                               >
-                                ₦{parseFloat(order.amount).toLocaleString()}
+                                ₦{Number(order.amount || 0).toLocaleString()}
                               </td>
                               <td style={{ padding: "14px 16px" }}>
                                 <span
@@ -1207,7 +1189,6 @@ export default function AdminPage() {
               </div>
             </div>
           )}
-
           {/* ORDERS TAB */}
           {activeTab === "orders" && (
             <div>
@@ -1367,7 +1348,7 @@ export default function AdminPage() {
                                   whiteSpace: "nowrap",
                                 }}
                               >
-                                ₦{parseFloat(order.amount).toLocaleString()}
+                                ₦{Number(order.amount || 0).toLocaleString()}
                               </td>
                               <td style={{ padding: "14px 16px" }}>
                                 <span
@@ -1431,7 +1412,6 @@ export default function AdminPage() {
               )}
             </div>
           )}
-
           {/* PRODUCTS TAB */}
           {activeTab === "products" && (
             <div
@@ -1604,7 +1584,7 @@ export default function AdminPage() {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          ₦{(p.price * 1500).toLocaleString()}
+                          ₦{(Number(p.price || 0) * 1500).toLocaleString()}
                         </td>
                         <td style={{ padding: "14px 16px" }}>
                           <span
@@ -1675,7 +1655,6 @@ export default function AdminPage() {
               </div>
             </div>
           )}
-
           {/* CUSTOMERS TAB */}
           {activeTab === "customers" && (
             <div
@@ -1984,7 +1963,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-
       {/*RETURNS TAB */}
       {activeTab === "returns" && (
         <div
@@ -2149,7 +2127,6 @@ export default function AdminPage() {
           )}
         </div>
       )}
-
       {/* Mobile Bottom Tab Bar */}
       {isMobile && (
         <div
@@ -2213,9 +2190,7 @@ export default function AdminPage() {
           </button>
         </div>
       )}
-
       {/* ── MODALS ── */}
-
       {/* Edit Product Modal */}
       <AnimatePresence>
         {editProduct && (
@@ -2366,7 +2341,6 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
-
             {/* Fields */}
             <div
               style={{
@@ -2490,7 +2464,6 @@ export default function AdminPage() {
                 Featured Product (shows ⭐ badge)
               </label>
             </div>
-
             <div
               style={{
                 display: "flex",
@@ -2557,7 +2530,6 @@ export default function AdminPage() {
           </Modal>
         )}
       </AnimatePresence>
-
       {/* Delete Modal */}
       <AnimatePresence>
         {deleteProduct && (
@@ -2626,7 +2598,6 @@ export default function AdminPage() {
           </Modal>
         )}
       </AnimatePresence>
-
       {/* View Order Modal */}
       <AnimatePresence>
         {viewOrder && (
@@ -2650,7 +2621,7 @@ export default function AdminPage() {
                 },
                 {
                   label: "Amount",
-                  value: `₦${parseFloat(viewOrder.amount).toLocaleString()}`,
+                  value: `₦${Number(viewOrder.amount || 0).toLocaleString()}`,
                   green: true,
                 },
               ].map((row) => (
@@ -2755,7 +2726,6 @@ export default function AdminPage() {
           </Modal>
         )}
       </AnimatePresence>
-
       {/* Add Product Modal */}
       <AnimatePresence>
         {addModal && (
@@ -2847,7 +2817,6 @@ export default function AdminPage() {
                 </button>
               )}
             </div>
-
             <div
               style={{
                 display: "flex",
@@ -3014,7 +2983,6 @@ export default function AdminPage() {
                 Featured Product
               </label>
             </div>
-
             <div
               style={{
                 display: "flex",
@@ -3078,7 +3046,6 @@ export default function AdminPage() {
           </Modal>
         )}
       </AnimatePresence>
-
       {/* Customer View Modal */}
       <AnimatePresence>
         {viewCustomer && (
@@ -3221,7 +3188,6 @@ export default function AdminPage() {
     </div>
   );
 }
-
 function Modal({ children, onClose, title }) {
   return (
     <div
@@ -3283,7 +3249,6 @@ function Modal({ children, onClose, title }) {
     </div>
   );
 }
-
 function getEmoji(name) {
   const map = {
     "Ofada Rice": "🌾",

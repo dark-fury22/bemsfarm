@@ -32,9 +32,9 @@ export default function Footer() {
       heading: "Shop",
       links: [
         { label: "All Products", path: "/products" },
-        { label: "Deals & Offers", path: "/deals" },
         { label: "Smart Search", path: "/semantic-search" },
-        { label: "Recommendations", path: "/recommendations" },
+        { label: "AI Recommendations", path: "/recommendations" },
+        { label: "Recipe Helper", path: "/recipe-helper" },
       ],
     },
     {
@@ -52,7 +52,6 @@ export default function Footer() {
         { label: "About Us", path: "/about" },
         { label: "Contact", path: "/contact" },
         { label: "Pricing Guide", path: "/dynamic-pricing" },
-        { label: "Recipe Helper", path: "/recipe-helper" },
       ],
     },
   ];
