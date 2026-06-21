@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone                 VARCHAR(20),
   email_verified        BOOLEAN DEFAULT false,
   verification_token    VARCHAR(100),
+  verification_expires  TIMESTAMP,
   reset_token           VARCHAR(100),
   reset_expires         TIMESTAMP,
   failed_login_attempts INT DEFAULT 0,
@@ -97,6 +98,8 @@ CREATE TABLE IF NOT EXISTS returns (
   reason      VARCHAR(50),
   description TEXT,
   status      VARCHAR(30) DEFAULT 'submitted',
+  resolution  TEXT,
+  resolved_at TIMESTAMP,
   created_at  TIMESTAMP DEFAULT NOW()
 );
 

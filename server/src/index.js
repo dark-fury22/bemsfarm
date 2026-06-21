@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const crypto = require("crypto");
+const pool = require("./db/pool");
 const app = express();
 
 // MUST be before routes
@@ -16,6 +18,42 @@ app.use(
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
+);
+
+app.post(
+  "/api/webhooks/paystack",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      const secret = process.env.PAYSTACK_SECRET || "";
+      if (!secret) return res.sendStatus(500);
+
+      const hash = crypto
+        .createHmac("sha512", secret)
+        .update(req.body)
+        .digest("hex");
+
+      if (hash !== req.headers["x-paystack-signature"]) {
+        return res.sendStatus(401);
+      }
+
+      const event = JSON.parse(req.body.toString("utf8"));
+      if (event.event === "charge.success") {
+        await pool.query(
+          `UPDATE orders
+           SET status='confirmed', tracking_status='confirmed'
+           WHERE payment_ref=$1`,
+          [event.data.reference],
+        );
+        console.log("Payment confirmed for ref:", event.data.reference);
+      }
+
+      res.sendStatus(200);
+    } catch (err) {
+      console.error("Webhook error:", err.message);
+      res.sendStatus(500);
+    }
+  },
 );
 
 /* app.use(cors({

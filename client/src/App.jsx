@@ -23,6 +23,7 @@ import DynamicPricingPage from "./pages/DynamicPricingPage";
 import FraudDetectionPage from "./pages/FraudDetectionPage";
 import DemandForecastingPage from "./pages/DemandForecastingPage";
 import OnboardingPage from "./pages/OnboardingPage";
+import { useAuth } from "./context/AuthContext";
 
 // NOTE: DealsPage import removed — the Deals page has been retired
 // in favor of AI Recommendations. The route below 301-style redirects
@@ -30,6 +31,16 @@ import OnboardingPage from "./pages/OnboardingPage";
 // straight to /recommendations so nothing breaks.
 
 const P = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
+
+const AdminRoute = ({ children }) => {
+  const { user } = useAuth();
+
+  if (user?.role !== "admin") {
+    return <Navigate to="/home" replace />;
+  }
+
+  return children;
+};
 
 function App() {
   return (
@@ -151,7 +162,9 @@ function App() {
           path="/admin"
           element={
             <P>
-              <AdminPage />
+              <AdminRoute>
+                <AdminPage />
+              </AdminRoute>
             </P>
           }
         />

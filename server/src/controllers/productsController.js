@@ -20,7 +20,7 @@ const getProducts = async (req, res) => {
     // Filter by category
     if (category) {
       params.push(category);
-      query += ` AND c.slug = $${params.length}`;
+      query += ` AND LOWER(c.name) = LOWER($${params.length})`;
     }
 
     // Search by name

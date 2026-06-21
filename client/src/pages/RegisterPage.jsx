@@ -7,7 +7,6 @@ import Navbar from "../components/layout/Navbar";
 import Footer from "../components/layout/Footer";
 import { useResponsive } from "../hooks/useResponsive";
 import { GoogleLogin } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode";
 import AuthWrapper from "../components/layout/AuthWrapper";
 
 export default function RegisterPage() {
@@ -47,6 +46,26 @@ export default function RegisterPage() {
       navigate(hasOnboarded ? "/home" : "/onboarding");
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await api.post("/auth/google", {
+        credential: credentialResponse.credential,
+      });
+
+      login(res.data.user, res.data.token);
+
+      const hasOnboarded = localStorage.getItem("bemsfarms_prefs");
+      navigate(hasOnboarded ? "/home" : "/onboarding");
+    } catch (err) {
+      setError(err.response?.data?.message || "Google sign up failed");
     } finally {
       setLoading(false);
     }
@@ -198,23 +217,7 @@ export default function RegisterPage() {
               {/* Google */}
               <div style={{ marginTop: "15px" }}>
                 <GoogleLogin
-                  onSuccess={(credentialResponse) => {
-                    const decoded = jwtDecode(credentialResponse.credential);
-
-                    login(
-                      {
-                        id: decoded.sub,
-                        name: decoded.name,
-                        email: decoded.email,
-                        picture: decoded.picture,
-                      },
-                      credentialResponse.credential,
-                    );
-
-                    const hasOnboarded =
-                      localStorage.getItem("bemsfarms_prefs");
-                    navigate(hasOnboarded ? "/home" : "/onboarding");
-                  }}
+                  onSuccess={handleGoogleSuccess}
                   onError={() => setError("Google sign up failed")}
                 />
               </div>

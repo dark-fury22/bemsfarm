@@ -5,10 +5,8 @@ import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import Navbar from "../components/layout/Navbar";
 import Footer from "../components/layout/Footer";
-import { useLocation } from "react-router-dom";
 import { useResponsive } from "../hooks/useResponsive";
 import { GoogleLogin } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode";
 import AuthWrapper from "../components/layout/AuthWrapper";
 
 export default function LoginPage() {
@@ -18,10 +16,8 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
-  const location = useLocation();
   const [lockTime, setLockTime] = useState(null);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const from = location.state?.from || "/home";
   const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
     useResponsive();
 
@@ -54,6 +50,26 @@ export default function LoginPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      setGoogleLoading(true);
+      setError("");
+
+      const res = await api.post("/auth/google", {
+        credential: credentialResponse.credential,
+      });
+
+      login(res.data.user, res.data.token);
+
+      const hasOnboarded = localStorage.getItem("bemsfarms_prefs");
+      navigate(hasOnboarded ? "/home" : "/onboarding");
+    } catch (err) {
+      setError(err.response?.data?.message || "Google login failed");
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -322,20 +338,7 @@ export default function LoginPage() {
 
               <div style={{ marginBottom: "20px" }}>
                 <GoogleLogin
-                  onSuccess={(credentialResponse) => {
-                    const decoded = jwtDecode(credentialResponse.credential);
-                    // Auto-login with Google
-                    login(
-                      {
-                        id: decoded.sub,
-                        name: decoded.name,
-                        email: decoded.email,
-                        picture: decoded.picture,
-                      },
-                      credentialResponse.credential,
-                    );
-                    navigate(from);
-                  }}
+                  onSuccess={handleGoogleSuccess}
                   onError={() =>
                     setError("Google login failed. Please try again.")
                   }
@@ -345,6 +348,19 @@ export default function LoginPage() {
                   logo_alignment="left"
                 />
               </div>
+              {googleLoading && (
+                <p
+                  style={{
+                    textAlign: "center",
+                    color: "#9AA0A6",
+                    fontSize: "13px",
+                    marginTop: "-8px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  Verifying Google account...
+                </p>
+              )}
 
               <div
                 style={{

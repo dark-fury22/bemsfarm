@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { protect } = require("../middleware/authMiddleware");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 const {
   getStats,
   updateOrderStatus,
@@ -10,7 +10,6 @@ const {
   addProduct,
   getSubscribers,
 } = require("../controllers/adminController");
-console.log("getSubscribers:", getSubscribers);
 
 const {
   getAllReturns,
@@ -18,24 +17,26 @@ const {
 } = require("../controllers/returnsController");
 const pool = require("../db/pool");
 
-router.get("/stats", protect, getStats);
-router.get("/subscribers", protect, getSubscribers);
-router.post("/products", protect, addProduct);
-router.put("/products/:id", protect, updateProduct);
-router.delete("/products/:id", protect, deleteProduct);
-router.get("/orders", protect, getAllOrders);
-router.patch("/orders/:id/status", protect, updateOrderStatus);
-router.get("/returns", protect, getAllReturns);
-router.patch("/returns/:id", protect, updateReturn);
+router.use(protect, adminOnly);
+
+router.get("/stats", getStats);
+router.get("/subscribers", getSubscribers);
+router.post("/products", addProduct);
+router.put("/products/:id", updateProduct);
+router.delete("/products/:id", deleteProduct);
+router.get("/orders", getAllOrders);
+router.patch("/orders/:id/status", updateOrderStatus);
+router.get("/returns", getAllReturns);
+router.patch("/returns/:id", updateReturn);
 
 // Products CRUD
-router.get("/products", protect, async (req, res) => {
+router.get("/products", async (req, res) => {
   const r = await pool.query(
     `SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON c.id=p.category_id ORDER BY p.id`,
   );
   res.json({ products: r.rows });
 });
-router.post("/products", protect, async (req, res) => {
+router.post("/products", async (req, res) => {
   const {
     name,
     price,
@@ -62,7 +63,7 @@ router.post("/products", protect, async (req, res) => {
   );
   res.status(201).json({ product: r.rows[0] });
 });
-router.put("/products/:id", protect, async (req, res) => {
+router.put("/products/:id", async (req, res) => {
   const { name, price, unit, description, is_featured, image_url, stock } =
     req.body;
   const r = await pool.query(
@@ -80,16 +81,14 @@ router.put("/products/:id", protect, async (req, res) => {
   );
   res.json({ product: r.rows[0] });
 });
-router.delete("/products/:id", protect, async (req, res) => {
+router.delete("/products/:id", async (req, res) => {
   const id = parseInt(req.params.id);
-  await pool.query("DELETE FROM order_items WHERE product_id=$1", [id]);
-  await pool.query("DELETE FROM cart_items WHERE product_id=$1", [id]);
   await pool.query("DELETE FROM products WHERE id=$1", [id]);
   res.json({ message: "Deleted" });
 });
 
 // Returns (admin)
-router.get("/returns", protect, async (req, res) => {
+router.get("/returns", async (req, res) => {
   const r = await pool.query(`
     SELECT r.*, p.name as product_name, u.name as customer_name, u.email as customer_email
     FROM returns r JOIN products p ON p.id=r.product_id JOIN users u ON u.id=r.user_id
@@ -97,7 +96,7 @@ router.get("/returns", protect, async (req, res) => {
   `);
   res.json({ returns: r.rows });
 });
-router.patch("/returns/:id", protect, async (req, res) => {
+router.patch("/returns/:id", async (req, res) => {
   const { status } = req.body;
   await pool.query("UPDATE returns SET status=$1 WHERE id=$2", [
     status,
@@ -107,7 +106,7 @@ router.patch("/returns/:id", protect, async (req, res) => {
 });
 
 // Subscribers
-router.get("/subscribers", protect, async (req, res) => {
+router.get("/subscribers", async (req, res) => {
   const r = await pool.query(
     "SELECT * FROM email_subscriptions ORDER BY subscribed_at DESC",
   );

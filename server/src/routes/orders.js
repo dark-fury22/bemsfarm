@@ -8,10 +8,60 @@ router.post("/", protect, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { items, total, payment_method, payment_ref, address } = req.body;
+    const { items, payment_method, payment_ref, address } = req.body;
 
-    if (!items || !items.length)
+    if (!Array.isArray(items) || !items.length) {
+      await client.query("ROLLBACK");
       return res.status(400).json({ message: "No items in order" });
+    }
+
+    const normalizedItems = [];
+    let subtotal = 0;
+
+    for (const item of items) {
+      const productId = Number(item.product_id);
+      const quantity = Number(item.quantity);
+
+      if (!Number.isInteger(productId) || productId <= 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "Invalid product in order" });
+      }
+
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "Invalid item quantity" });
+      }
+
+      const productResult = await client.query(
+        `SELECT id, name, price, COALESCE(stock, 100) AS stock
+         FROM products
+         WHERE id = $1
+         FOR UPDATE`,
+        [productId],
+      );
+
+      if (!productResult.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "Product not found" });
+      }
+
+      const product = productResult.rows[0];
+      const currentStock = Number(product.stock);
+
+      if (currentStock < quantity) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message: `Insufficient stock for ${product.name}. Only ${currentStock} available.`,
+        });
+      }
+
+      const price = Number(product.price);
+      normalizedItems.push({ productId, quantity, price });
+      subtotal += price * 1500 * quantity;
+    }
+
+    const deliveryFee = 500;
+    const calculatedTotal = subtotal + deliveryFee;
 
     const orderId = "BF-" + Date.now().toString(36).toUpperCase();
 
@@ -22,7 +72,7 @@ router.post("/", protect, async (req, res) => {
       [
         orderId,
         req.user.id,
-        parseFloat(total) || 0,
+        calculatedTotal,
         payment_method || "paystack",
         payment_ref || null,
         address || "",
@@ -30,21 +80,16 @@ router.post("/", protect, async (req, res) => {
     );
 
     // Insert order items
-    for (const item of items) {
+    for (const item of normalizedItems) {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price)
          VALUES ($1, $2, $3, $4)`,
-        [
-          orderId,
-          parseInt(item.product_id),
-          parseInt(item.quantity),
-          parseFloat(item.price),
-        ],
+        [orderId, item.productId, item.quantity, item.price],
       );
       // Decrement stock safely
       await client.query(
-        `UPDATE products SET stock = GREATEST(0, COALESCE(stock, 100) - $1) WHERE id = $2`,
-        [parseInt(item.quantity), parseInt(item.product_id)],
+        `UPDATE products SET stock = COALESCE(stock, 100) - $1 WHERE id = $2`,
+        [item.quantity, item.productId],
       );
     }
 

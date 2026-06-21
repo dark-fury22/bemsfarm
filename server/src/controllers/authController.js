@@ -3,8 +3,13 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const emailService = require("../services/emailService");
+const { requiredEnv } = require("../config/env");
 
-const JWT_SECRET = process.env.JWT_SECRET || "frutella_super_secret_key";
+const JWT_SECRET = requiredEnv("JWT_SECRET", "dev_jwt_secret_change_me");
+const REFRESH_SECRET = requiredEnv(
+  "REFRESH_SECRET",
+  "dev_refresh_secret_change_me",
+);
 const JWT_EXPIRES = "15m";
 const REFRESH_EXPIRES = "7d";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -18,7 +23,7 @@ function generateTokens(user) {
   );
   const refreshToken = jwt.sign(
     { id: user.id },
-    process.env.REFRESH_SECRET || JWT_SECRET + "_refresh",
+    REFRESH_SECRET,
     { expiresIn: REFRESH_EXPIRES },
   );
   return { accessToken, refreshToken };
@@ -213,10 +218,7 @@ const refreshToken = async (req, res) => {
     const token = req.cookies.refreshToken;
     if (!token) return res.status(401).json({ message: "No refresh token" });
 
-    const decoded = jwt.verify(
-      token,
-      process.env.REFRESH_SECRET || JWT_SECRET + "_refresh",
-    );
+    const decoded = jwt.verify(token, REFRESH_SECRET);
     const result = await pool.query(
       "SELECT * FROM users WHERE id=$1 AND refresh_token=$2",
       [decoded.id, token],

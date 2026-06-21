@@ -1,0 +1,6 @@
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS verification_expires TIMESTAMP;
+
+ALTER TABLE returns
+  ADD COLUMN IF NOT EXISTS resolution TEXT,
+  ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP;

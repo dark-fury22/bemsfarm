@@ -1,8 +1,10 @@
 import axios from "axios";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "https://bemsfarms-api.onrender.com/api";
+
 const api = axios.create({
-  baseURL:
-    import.meta.env.VITE_API_URL || "https://bemsfarms-api.onrender.com/api",
+  baseURL: API_BASE_URL,
   timeout: 15000,
   withCredentials: true, // sends cookies (needed for refresh token)
 });
@@ -56,7 +58,7 @@ api.interceptors.response.use(
       try {
         // Try to refresh token
         const res = await axios.post(
-          `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/auth/refresh`,
+          `${API_BASE_URL}/auth/refresh`,
           {},
           { withCredentials: true },
         );

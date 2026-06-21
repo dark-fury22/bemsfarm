@@ -8,9 +8,13 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import "./styles/responsive.css";
 import "./styles/theme.css";
 
+const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  "399237493446-7k3fijdcv9q4d6pfr4bhnllcbi13vt97.apps.googleusercontent.com";
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId="399237493446-7k3fijdcv9q4d6pfr4bhnllcbi13vt97.apps.googleusercontent.com">
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <AuthProvider>
         <CartProvider>
           <App />

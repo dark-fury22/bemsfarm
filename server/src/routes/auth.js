@@ -2,14 +2,21 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require("google-auth-library");
 const pool = require("../db/pool");
+const { requiredEnv } = require("../config/env");
 const { protect } = require("../middleware/authMiddleware");
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || "frutella_super_secret_key_change_in_production";
-const REFRESH_SECRET =
-  process.env.REFRESH_SECRET || "frutella_refresh_secret_key";
+const DEV_GOOGLE_CLIENT_ID =
+  "399237493446-7k3fijdcv9q4d6pfr4bhnllcbi13vt97.apps.googleusercontent.com";
+const JWT_SECRET = requiredEnv("JWT_SECRET", "dev_jwt_secret_change_me");
+const REFRESH_SECRET = requiredEnv(
+  "REFRESH_SECRET",
+  "dev_refresh_secret_change_me",
+);
+const GOOGLE_CLIENT_ID = requiredEnv("GOOGLE_CLIENT_ID", DEV_GOOGLE_CLIENT_ID);
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 function generateAccessToken(user) {
   return jwt.sign(
@@ -21,6 +28,25 @@ function generateAccessToken(user) {
 
 function generateRefreshToken(userId) {
   return jwt.sign({ id: userId }, REFRESH_SECRET, { expiresIn: "30d" });
+}
+
+async function verifyGoogleCredential(credential) {
+  const ticket = await googleClient.verifyIdToken({
+    idToken: credential,
+    audience: GOOGLE_CLIENT_ID,
+  });
+  const payload = ticket.getPayload();
+
+  if (!payload?.email || payload.email_verified !== true) {
+    throw new Error("Google account email is not verified");
+  }
+
+  return {
+    googleId: payload.sub,
+    name: payload.name,
+    email: payload.email.toLowerCase(),
+    picture: payload.picture,
+  };
 }
 
 // ── REGISTER ────────────────────────────────────────────────
@@ -135,6 +161,62 @@ router.post("/login", async (req, res) => {
   } catch (err) {
     console.error("Login error:", err.message);
     res.status(500).json({ message: "Login failed: " + err.message });
+  }
+});
+
+// GOOGLE LOGIN / SIGNUP
+router.post("/google", async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ message: "Google credential is required" });
+    }
+
+    const googleUser = await verifyGoogleCredential(credential);
+    const existing = await pool.query(
+      "SELECT id, name, email, role FROM users WHERE LOWER(email) = LOWER($1)",
+      [googleUser.email],
+    );
+
+    let user = existing.rows[0];
+
+    if (!user) {
+      const created = await pool.query(
+        `INSERT INTO users (name, email, role, email_verified, created_at)
+         VALUES ($1, $2, 'user', true, NOW())
+         RETURNING id, name, email, role`,
+        [googleUser.name || googleUser.email, googleUser.email],
+      );
+      user = created.rows[0];
+    }
+
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user.id);
+
+    await pool.query(
+      "UPDATE users SET refresh_token=$1, last_login=NOW() WHERE id=$2",
+      [refreshToken, user.id],
+    );
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({
+      token: accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error("Google auth error:", err.message);
+    res.status(401).json({ message: "Google sign-in failed" });
   }
 });
 

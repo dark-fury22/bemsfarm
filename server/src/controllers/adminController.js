@@ -269,15 +269,6 @@ const deleteProduct = async (req, res) => {
 
     await client.query("BEGIN");
 
-    // Delete related records
-    await client.query("DELETE FROM order_items WHERE product_id = $1", [
-      parseInt(id),
-    ]);
-    await client.query("DELETE FROM cart_items WHERE product_id = $1", [
-      parseInt(id),
-    ]);
-
-    // Delete product
     const result = await client.query(
       "DELETE FROM products WHERE id = $1 RETURNING id",
       [parseInt(id)],
