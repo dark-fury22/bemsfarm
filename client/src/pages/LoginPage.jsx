@@ -2,18 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-/*
-  FIXES vs previous version:
-  1. navigate("/") → navigate("/home") — was sending users to ComingSoonPage
-  2. useState() used as useEffect() for slide timer — fixed to useEffect with cleanup
-  3. Google OAuth button added — uses @react-oauth/google
-     SETUP: npm install @react-oauth/google  (in client/)
-     Add to client/index.html or main.jsx:
-       import { GoogleOAuthProvider } from '@react-oauth/google'
-       wrap <App /> with <GoogleOAuthProvider clientId="YOUR_CLIENT_ID">
-     Add VITE_GOOGLE_CLIENT_ID=your_client_id to Vercel env vars
-*/
-
 import { GoogleLogin } from "@react-oauth/google";
 
 const SLIDE_IMAGES = [
@@ -396,7 +384,7 @@ export default function LoginPage() {
               useOneTap={false}
               theme="outline"
               size="large"
-              width="100%"
+              width="380"
               text="signin_with_google"
               shape="rectangular"
             />

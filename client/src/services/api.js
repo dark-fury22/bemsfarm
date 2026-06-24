@@ -4,7 +4,7 @@ import axios from "axios";
 // BASE AXIOS INSTANCE
 // ─────────────────────────────────────────────
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "https://bemsfarms-api.onrender.com",
+  baseURL: import.meta.env.VITE_API_URL || "https://api.bemsfarms.com/api",
   timeout: 15000,
   withCredentials: true,
 });
