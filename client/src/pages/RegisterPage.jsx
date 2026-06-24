@@ -376,7 +376,7 @@ export default function RegisterPage() {
               useOneTap={false}
               theme="outline"
               size="large"
-              width="100%"
+              width="380"
               text="signup_with_google"
               shape="rectangular"
             />
