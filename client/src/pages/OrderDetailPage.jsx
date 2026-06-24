@@ -1,718 +1,943 @@
-import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import PageWrapper from "../components/layout/PageWrapper";
-import { useCart } from "../context/CartContext";
+// ─── Order Detail Page with Return Request button ────────────────────────────
+// Replace/update your existing OrderDetailPage.jsx with this version.
+// It adds a "Request Return" button that appears when order status is "delivered"
+// and the delivery was within the last 7 days.
+
 import { useState, useEffect } from "react";
-import api from "../services/api";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { ordersAPI } from "../services/api"; // adjust path if needed
 
-/*
-  ── BUG FIX ──────────────────────────────────────────────────
-  This page used to read from a hardcoded `mockOrders` object with
-  only 3 fake IDs, and silently fell back to the FIRST mock order
-  whenever a real order ID wasn't found in that fake list:
-
-      const order = mockOrders[id] || Object.values(mockOrders)[0]
-
-  That's why clicking into ANY real order (e.g. "BF-MQM20HLE")
-  always showed the same unrelated order — the fallback masked the
-  fact that the real order was never being fetched at all.
-
-  Fixed by calling the new GET /orders/:id endpoint and removing
-  the mock data + silent fallback entirely. A genuinely missing or
-  inaccessible order now shows a clear "not found" state instead of
-  someone else's data.
-*/
-
-const statusConfig = {
-  pending: { color: "#E65100", bg: "#FFF3E0", label: "Pending", icon: "⏳" },
-  order_placed: {
-    color: "#E65100",
-    bg: "#FFF3E0",
-    label: "Order Placed",
-    icon: "📋",
+const STATUS_CONFIG = {
+  pending: {
+    label: "Pending",
+    bg: "#FEF3C7",
+    color: "#92400E",
+    dot: "#F59E0B",
   },
   confirmed: {
-    color: "#1565C0",
-    bg: "#E3F2FD",
     label: "Confirmed",
-    icon: "✅",
+    bg: "#DBEAFE",
+    color: "#1E40AF",
+    dot: "#3B82F6",
   },
-  being_packed: {
-    color: "#6A1B9A",
-    bg: "#F3E5F5",
-    label: "Being Packed",
-    icon: "📦",
+  processing: {
+    label: "Processing",
+    bg: "#EDE9FE",
+    color: "#5B21B6",
+    dot: "#8B5CF6",
   },
-  out_for_delivery: {
-    color: "#00838F",
-    bg: "#E0F7FA",
-    label: "Out for Delivery",
-    icon: "🚚",
+  shipped: {
+    label: "Shipped",
+    bg: "#FEF9C3",
+    color: "#713F12",
+    dot: "#EAB308",
   },
   delivered: {
-    color: "#2E7D32",
-    bg: "#E8F5E9",
     label: "Delivered",
-    icon: "🎉",
+    bg: "#D1FAE5",
+    color: "#065F46",
+    dot: "#10B981",
   },
   cancelled: {
-    color: "#C62828",
-    bg: "#FFEBEE",
     label: "Cancelled",
-    icon: "❌",
+    bg: "#FEE2E2",
+    color: "#991B1B",
+    dot: "#EF4444",
   },
 };
 
-const trackingSteps = [
-  { key: "order_placed", label: "Order Placed", icon: "📋" },
-  { key: "confirmed", label: "Confirmed", icon: "✅" },
-  { key: "being_packed", label: "Being Packed", icon: "📦" },
-  { key: "out_for_delivery", label: "Out for Delivery", icon: "🚚" },
-  { key: "delivered", label: "Delivered", icon: "🎉" },
-];
-
-function getFoodEmoji(name) {
-  const map = {
-    "Palm Oil": "🛢️",
-    "Garri (White)": "🍚",
-    "Garri (Yellow)": "🟡",
-    "Fresh Tomatoes": "🍅",
-    "Ofada Rice": "🌾",
-    "Black-eyed Beans": "⚫",
-    "Groundnut Oil": "🥜",
-    "Dried Crayfish": "🦐",
-  };
-  return map[name] || "🛒";
+function StatusBadge({ status }) {
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        background: cfg.bg,
+        color: cfg.color,
+        padding: "6px 16px",
+        borderRadius: 20,
+        fontSize: 14,
+        fontWeight: 700,
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          background: cfg.dot,
+        }}
+      />
+      {cfg.label}
+    </span>
+  );
 }
 
-export default function OrderDetailPage() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const { addToCart } = useCart();
+// ─── Return Request Modal ─────────────────────────────────────────────────────
+function ReturnModal({ order, onClose, onSubmitted }) {
+  const [reason, setReason] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [reordering, setReordering] = useState(false);
+  const REASONS = [
+    "Item damaged on arrival",
+    "Wrong item delivered",
+    "Item not as described",
+    "Quality not satisfactory",
+    "Ordered by mistake",
+    "Other",
+  ];
 
-  useEffect(() => {
-    let cancelled = false;
+  const handleSubmit = async () => {
+    if (!reason) return alert("Please select a reason for your return.");
     setLoading(true);
-    setNotFound(false);
-
-    api
-      .get(`/orders/${id}`)
-      .then((res) => {
-        if (!cancelled) setOrder(res.data.order);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if (err?.response?.status === 404) {
-          setNotFound(true);
-        } else {
-          console.error("Failed to load order:", err.message);
-          setNotFound(true);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  if (loading) {
-    return (
-      <PageWrapper>
-        <div
-          style={{
-            minHeight: "60vh",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "12px",
-          }}
-        >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            style={{ fontSize: "40px" }}
-          >
-            ⏳
-          </motion.div>
-          <p style={{ color: "#9AA0A6", fontSize: "14px" }}>
-            Loading order details...
-          </p>
-        </div>
-      </PageWrapper>
-    );
-  }
-
-  if (notFound || !order) {
-    return (
-      <PageWrapper>
-        <div
-          style={{
-            minHeight: "60vh",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "16px",
-            padding: "40px 20px",
-            textAlign: "center",
-          }}
-        >
-          <span style={{ fontSize: "56px" }}>🔍</span>
-          <h2
-            style={{
-              fontSize: "20px",
-              fontWeight: 800,
-              color: "#202124",
-              margin: 0,
-            }}
-          >
-            Order not found
-          </h2>
-          <p style={{ color: "#9AA0A6", margin: 0 }}>
-            We couldn't find an order with ID #{id}
-          </p>
-          <button
-            onClick={() => navigate("/orders")}
-            style={{
-              padding: "12px 28px",
-              background: "#2E7D32",
-              color: "white",
-              border: "none",
-              borderRadius: "10px",
-              fontWeight: 700,
-              cursor: "pointer",
-              fontSize: "14px",
-            }}
-          >
-            ← Back to My Orders
-          </button>
-        </div>
-      </PageWrapper>
-    );
-  }
-
-  const s =
-    statusConfig[order.tracking_status] ||
-    statusConfig[order.status] ||
-    statusConfig.pending;
-  const items = order.items || [];
-  const subtotal = items.reduce(
-    (acc, i) => acc + Number(i.price) * 1500 * i.quantity,
-    0,
-  );
-  const delivery = order.delivery === 0 || subtotal > 15000 ? 0 : 500;
-  const orderDate = order.created_at
-    ? new Date(order.created_at).toLocaleDateString("en-NG", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    : "";
-
-  const currentStepIndex = trackingSteps.findIndex(
-    (step) => step.key === order.tracking_status,
-  );
-
-  const handleReorder = async () => {
-    setReordering(true);
     try {
-      const res = await api.get("/products");
-      const allProducts = res.data.products;
-
-      items.forEach((item) => {
-        const product = allProducts.find(
-          (p) => p.id === item.product_id || p.name === item.name,
-        );
-        if (product) {
-          for (let i = 0; i < item.quantity; i++) {
-            addToCart(product);
-          }
-        }
+      // POST /api/returns  — your existing returns endpoint
+      await fetch("/api/returns", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          order_id: order.id,
+          reason,
+          description,
+        }),
       });
-      navigate("/cart");
+      setSuccess(true);
+      setTimeout(() => {
+        onSubmitted();
+        onClose();
+      }, 2000);
     } catch (err) {
-      console.error("Reorder failed:", err.message);
+      alert("Failed to submit return request. Please try again.");
     } finally {
-      setReordering(false);
+      setLoading(false);
     }
   };
 
   return (
-    <PageWrapper>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(0,0,0,0.5)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div
-        style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 24px" }}
+        style={{
+          background: "#fff",
+          borderRadius: 24,
+          padding: "32px",
+          maxWidth: 480,
+          width: "100%",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.25)",
+          animation: "slideUp 0.3s ease",
+        }}
       >
-        {/* Breadcrumb */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            marginBottom: "24px",
-            fontSize: "13px",
-            color: "#9AA0A6",
-          }}
-        >
-          <button
-            onClick={() => navigate("/home")}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "#9AA0A6",
-            }}
-          >
-            Home
-          </button>
-          <span>/</span>
-          <button
-            onClick={() => navigate("/orders")}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "#9AA0A6",
-            }}
-          >
-            My Orders
-          </button>
-          <span>/</span>
-          <span style={{ color: "#202124", fontWeight: 600 }}>#{order.id}</span>
-        </div>
+        {success ? (
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: "50%",
+                background: "#D1FAE5",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 20px",
+                fontSize: 36,
+              }}
+            >
+              ✓
+            </div>
+            <h3
+              style={{
+                color: "#065F46",
+                fontSize: 20,
+                fontWeight: 800,
+                margin: "0 0 8px",
+              }}
+            >
+              Return Request Submitted!
+            </h3>
+            <p style={{ color: "#6B7280", fontSize: 15 }}>
+              We'll review your request and process it within 3-5 business days.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Header */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                marginBottom: 24,
+              }}
+            >
+              <div>
+                <h2
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color: "#0D1117",
+                    margin: "0 0 4px",
+                  }}
+                >
+                  Request a Return
+                </h2>
+                <p style={{ color: "#6B7280", fontSize: 14, margin: 0 }}>
+                  Order #{String(order.id).toUpperCase().slice(-10)}
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                style={{
+                  background: "#F3F4F6",
+                  border: "none",
+                  borderRadius: 10,
+                  width: 36,
+                  height: 36,
+                  cursor: "pointer",
+                  fontSize: 18,
+                  color: "#6B7280",
+                }}
+              >
+                ×
+              </button>
+            </div>
 
-        {/* Header */}
+            {/* Policy reminder */}
+            <div
+              style={{
+                background: "#F0FDF4",
+                border: "1px solid #BBF7D0",
+                borderRadius: 14,
+                padding: "14px 16px",
+                marginBottom: 24,
+                fontSize: 13,
+                color: "#166534",
+                lineHeight: 1.6,
+              }}
+            >
+              <strong>Return Policy:</strong> Items accepted within 7 days of
+              delivery. Must be in original condition (except damaged items).
+              Refund processed in 3-5 business days.
+            </div>
+
+            {/* Reason */}
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#374151",
+                  marginBottom: 10,
+                }}
+              >
+                Reason for Return *
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {REASONS.map((r) => (
+                  <label
+                    key={r}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      cursor: "pointer",
+                      border: `2px solid ${reason === r ? "#2E7D32" : "#E5E7EB"}`,
+                      background: reason === r ? "#F0FDF4" : "#fff",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="return-reason"
+                      value={r}
+                      checked={reason === r}
+                      onChange={() => setReason(r)}
+                      style={{ accentColor: "#2E7D32" }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: reason === r ? 700 : 400,
+                        color: reason === r ? "#166534" : "#374151",
+                      }}
+                    >
+                      {r}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Description */}
+            <div style={{ marginBottom: 24 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#374151",
+                  marginBottom: 8,
+                }}
+              >
+                Additional Details (optional)
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Tell us more about the issue..."
+                rows={3}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  border: "2px solid #E5E7EB",
+                  borderRadius: 12,
+                  fontSize: 14,
+                  outline: "none",
+                  resize: "vertical",
+                  boxSizing: "border-box",
+                  fontFamily: "inherit",
+                  transition: "border-color 0.2s",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#2E7D32")}
+                onBlur={(e) => (e.target.style.borderColor = "#E5E7EB")}
+              />
+            </div>
+
+            {/* Buttons */}
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                onClick={onClose}
+                style={{
+                  flex: 1,
+                  padding: "13px",
+                  borderRadius: 12,
+                  border: "2px solid #E5E7EB",
+                  background: "#fff",
+                  color: "#374151",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading || !reason}
+                style={{
+                  flex: 1,
+                  padding: "13px",
+                  borderRadius: 12,
+                  border: "none",
+                  background: loading || !reason ? "#9CA3AF" : "#DC2626",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: loading || !reason ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  transition: "all 0.2s",
+                }}
+              >
+                {loading ? (
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 16,
+                      height: 16,
+                      border: "2px solid rgba(255,255,255,0.4)",
+                      borderTopColor: "#fff",
+                      borderRadius: "50%",
+                      animation: "spin 0.7s linear infinite",
+                    }}
+                  />
+                ) : (
+                  "Submit Return Request"
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function OrderDetailPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnSubmitted, setReturnSubmitted] = useState(false);
+
+  useEffect(() => {
+    ordersAPI
+      .getById(id)
+      .then((res) => setOrder(res.data?.order || res.data))
+      .catch(() => navigate("/orders"))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "60vh",
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              border: "3px solid #E5E7EB",
+              borderTopColor: "#2E7D32",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+              margin: "0 auto 16px",
+            }}
+          />
+          <p style={{ color: "#9CA3AF", textAlign: "center" }}>
+            Loading order...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!order) return null;
+
+  const cfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
+  const items = order.items || order.order_items || [];
+  const total = Number(order.total || order.total || 0);
+  const date = new Date(order.created_at || order.createdAt);
+
+  // Check if eligible for return (delivered within last 7 days)
+  const updatedAt = new Date(
+    order.updated_at || order.updatedAt || order.created_at,
+  );
+  const daysSinceUpdate =
+    (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
+  const canReturn =
+    order.status === "delivered" && daysSinceUpdate <= 7 && !returnSubmitted;
+  const canCancel = order.status === "pending";
+
+  const handleCancel = async () => {
+    if (!window.confirm("Are you sure you want to cancel this order?")) return;
+    try {
+      await ordersAPI.cancel(order.id, "Cancelled by customer");
+      setOrder((prev) => ({ ...prev, status: "cancelled" }));
+    } catch {
+      alert("Failed to cancel order.");
+    }
+  };
+
+  return (
+    <div
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        padding: "32px 5%",
+        maxWidth: 800,
+        margin: "0 auto",
+        minHeight: "100vh",
+      }}
+    >
+      {/* Breadcrumb */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 24,
+          fontSize: 14,
+          color: "#9CA3AF",
+        }}
+      >
+        <Link to="/" style={{ color: "#9CA3AF", textDecoration: "none" }}>
+          Home
+        </Link>
+        <span>/</span>
+        <Link to="/orders" style={{ color: "#9CA3AF", textDecoration: "none" }}>
+          My Orders
+        </Link>
+        <span>/</span>
+        <span style={{ color: "#1a1a1a", fontWeight: 600 }}>
+          #{String(order.id).toUpperCase().slice(-10)}
+        </span>
+      </div>
+
+      {/* Header */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 20,
+          padding: "28px 32px",
+          marginBottom: 20,
+          border: "1px solid #E5E7EB",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+        }}
+      >
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-start",
-            marginBottom: "28px",
             flexWrap: "wrap",
-            gap: "12px",
+            gap: 16,
           }}
         >
           <div>
             <h1
               style={{
-                fontSize: "clamp(20px, 4vw, 24px)",
-                fontWeight: 800,
-                color: "#202124",
-                marginBottom: "4px",
+                fontSize: 24,
+                fontWeight: 900,
+                color: "#0D1117",
+                margin: "0 0 6px",
               }}
             >
-              Order #{order.id}
+              Order Details
             </h1>
-            <p style={{ color: "#9AA0A6", fontSize: "14px" }}>
-              Placed on {orderDate}
+            <p style={{ color: "#9CA3AF", fontSize: 14, margin: 0 }}>
+              #{String(order.id).toUpperCase().slice(-10)} · Placed{" "}
+              {date.toLocaleDateString("en-NG", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </p>
           </div>
-          <span
-            style={{
-              backgroundColor: s.bg,
-              color: s.color,
-              fontSize: "14px",
-              fontWeight: 700,
-              padding: "8px 20px",
-              borderRadius: "20px",
-            }}
-          >
-            {s.icon} {s.label}
-          </span>
+          <StatusBadge status={order.status} />
         </div>
 
-        {/* Tracking Steps — only show if not cancelled */}
-        {order.status !== "cancelled" && (
-          <div
-            style={{
-              backgroundColor: "white",
-              borderRadius: "16px",
-              padding: "24px",
-              border: "1px solid #E8EAED",
-              marginBottom: "20px",
-              overflowX: "auto",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                marginBottom: "20px",
-              }}
-            >
-              Order Tracking
-            </h3>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                minWidth: "420px",
-              }}
-            >
-              {trackingSteps.map((step, i) => {
-                const done = i <= currentStepIndex;
-                const current = i === currentStepIndex;
-                return (
-                  <div key={step.key} style={{ flex: 1, textAlign: "center" }}>
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: i * 0.1 }}
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "50%",
-                        margin: "0 auto",
-                        backgroundColor: done ? "#2E7D32" : "#F1F3F4",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "18px",
-                        border: current ? "2px solid #4CAF50" : "none",
-                        boxShadow: current
-                          ? "0 0 0 4px rgba(76,175,80,0.2)"
-                          : "none",
-                      }}
-                    >
-                      {step.icon}
-                    </motion.div>
-                    <p
-                      style={{
-                        fontSize: "11px",
-                        marginTop: "8px",
-                        fontWeight: done ? 700 : 400,
-                        color: done ? "#2E7D32" : "#9AA0A6",
-                      }}
-                    >
-                      {step.label}
-                    </p>
-                    {i < trackingSteps.length - 1 && (
-                      <div
-                        style={{
-                          height: "3px",
-                          backgroundColor:
-                            i < currentStepIndex ? "#2E7D32" : "#E8EAED",
-                          marginTop: "10px",
-                          borderRadius: "2px",
-                        }}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {order.status === "cancelled" && order.cancel_reason && (
-          <div
-            style={{
-              backgroundColor: "#FFEBEE",
-              border: "1px solid #FFCDD2",
-              borderRadius: "16px",
-              padding: "16px 20px",
-              marginBottom: "20px",
-            }}
-          >
-            <p
-              style={{
-                color: "#C62828",
-                fontWeight: 700,
-                fontSize: "14px",
-                marginBottom: "4px",
-              }}
-            >
-              Order Cancelled
-            </p>
-            <p style={{ color: "#9AA0A6", fontSize: "13px", margin: 0 }}>
-              Reason: {order.cancel_reason}
-            </p>
-          </div>
-        )}
-
+        {/* Status timeline */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "20px",
+            marginTop: 24,
+            display: "flex",
+            gap: 0,
+            alignItems: "center",
           }}
         >
-          {/* Items */}
-          <div
-            style={{
-              backgroundColor: "white",
-              borderRadius: "16px",
-              padding: "24px",
-              border: "1px solid #E8EAED",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                marginBottom: "16px",
-              }}
-            >
-              Order Items ({items.length})
-            </h3>
-            {items.map((item, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.08 }}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  paddingBottom: "14px",
-                  marginBottom: "14px",
-                  borderBottom:
-                    i < items.length - 1 ? "1px solid #F1F3F4" : "none",
-                }}
-              >
+          {["pending", "confirmed", "processing", "shipped", "delivered"].map(
+            (s, i, arr) => {
+              const statuses = [
+                "pending",
+                "confirmed",
+                "processing",
+                "shipped",
+                "delivered",
+              ];
+              const currentIdx = statuses.indexOf(
+                order.status === "cancelled" ? "pending" : order.status,
+              );
+              const stepIdx = statuses.indexOf(s);
+              const isPast = stepIdx <= currentIdx;
+              const isCancelled = order.status === "cancelled";
+              const sCfg = STATUS_CONFIG[s];
+
+              return (
                 <div
+                  key={s}
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "12px",
-                    minWidth: 0,
+                    flex: i < arr.length - 1 ? 1 : "none",
                   }}
                 >
                   <div
                     style={{
-                      width: "52px",
-                      height: "52px",
-                      borderRadius: "10px",
-                      backgroundColor: "#F8F9FA",
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      background: isCancelled
+                        ? "#FEE2E2"
+                        : isPast
+                          ? "linear-gradient(135deg,#2E7D32,#388E3C)"
+                          : "#F3F4F6",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: "24px",
-                      border: "1px solid #E8EAED",
-                      flexShrink: 0,
-                      overflow: "hidden",
+                      border: `2px solid ${isCancelled ? "#EF4444" : isPast ? "#2E7D32" : "#E5E7EB"}`,
+                      transition: "all 0.3s",
                     }}
                   >
-                    {item.image_url ? (
-                      <img
-                        src={item.image_url}
-                        alt={item.name}
+                    {isPast && !isCancelled ? (
+                      <span style={{ color: "#fff", fontSize: 14 }}>✓</span>
+                    ) : (
+                      <span
                         style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: isCancelled ? "#EF4444" : "#D1D5DB",
                         }}
                       />
-                    ) : (
-                      getFoodEmoji(item.name)
                     )}
                   </div>
-                  <div style={{ minWidth: 0 }}>
-                    <p
+                  {i < arr.length - 1 && (
+                    <div
                       style={{
-                        fontWeight: 600,
-                        fontSize: "15px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        flex: 1,
+                        height: 2,
+                        background:
+                          isPast && !isCancelled ? "#2E7D32" : "#E5E7EB",
+                        transition: "background 0.3s",
                       }}
-                    >
-                      {item.name}
-                    </p>
-                    <p style={{ fontSize: "13px", color: "#9AA0A6" }}>
-                      Qty: {item.quantity} × ₦
-                      {(Number(item.price) * 1500).toLocaleString()}
-                    </p>
+                    />
+                  )}
+                </div>
+              );
+            },
+          )}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginTop: 8,
+          }}
+        >
+          {["Pending", "Confirmed", "Processing", "Shipped", "Delivered"].map(
+            (l) => (
+              <span
+                key={l}
+                style={{
+                  fontSize: 10,
+                  color: "#9CA3AF",
+                  fontWeight: 600,
+                  textAlign: "center",
+                  flex: 1,
+                }}
+              >
+                {l}
+              </span>
+            ),
+          )}
+        </div>
+      </div>
+
+      {/* Items */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 20,
+          padding: "28px 32px",
+          marginBottom: 20,
+          border: "1px solid #E5E7EB",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 17,
+            fontWeight: 800,
+            color: "#0D1117",
+            margin: "0 0 20px",
+          }}
+        >
+          Items Ordered
+        </h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {items.length > 0 ? (
+            items.map((item, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                  padding: "12px",
+                  background: "#F8FAFC",
+                  borderRadius: 12,
+                }}
+              >
+                {item.product?.image_url && (
+                  <div
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <img
+                      src={item.product.image_url}
+                      alt={item.product.name}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  </div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{ fontWeight: 700, color: "#1a1a1a", fontSize: 15 }}
+                  >
+                    {item.product?.name || item.product_name || `Item ${i + 1}`}
+                  </div>
+                  <div style={{ color: "#9CA3AF", fontSize: 13 }}>
+                    Qty: {item.quantity} · ₦
+                    {Number(item.price || item.unit || 0).toLocaleString()} each
                   </div>
                 </div>
-                <p
-                  style={{
-                    fontWeight: 800,
-                    color: "#2E7D32",
-                    fontSize: "16px",
-                    flexShrink: 0,
-                  }}
+                <div
+                  style={{ fontWeight: 800, color: "#1a1a1a", fontSize: 16 }}
                 >
                   ₦
-                  {(Number(item.price) * 1500 * item.quantity).toLocaleString()}
-                </p>
-              </motion.div>
-            ))}
-          </div>
+                  {(
+                    Number(item.quantity) *
+                    Number(item.price || item.unit_price || 0)
+                  ).toLocaleString()}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p style={{ color: "#9CA3AF", fontSize: 14 }}>
+              No item details available
+            </p>
+          )}
+        </div>
 
-          {/* Summary + Address */}
+        <div
+          style={{
+            borderTop: "2px solid #F3F4F6",
+            marginTop: 20,
+            paddingTop: 16,
+          }}
+        >
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
           >
-            <div
-              style={{
-                backgroundColor: "white",
-                borderRadius: "16px",
-                padding: "20px",
-                border: "1px solid #E8EAED",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  marginBottom: "14px",
-                }}
-              >
-                Summary
-              </h3>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "8px",
-                }}
-              >
-                <span style={{ color: "#9AA0A6", fontSize: "14px" }}>
-                  Subtotal
-                </span>
-                <span style={{ fontWeight: 600 }}>
-                  ₦{subtotal.toLocaleString()}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "12px",
-                  paddingBottom: "12px",
-                  borderBottom: "1px dashed #E8EAED",
-                }}
-              >
-                <span style={{ color: "#9AA0A6", fontSize: "14px" }}>
-                  Delivery
-                </span>
-                <span
-                  style={{
-                    fontWeight: 600,
-                    color: delivery === 0 ? "#2E7D32" : "#202124",
-                  }}
-                >
-                  {delivery === 0 ? "Free 🎉" : `₦${delivery.toLocaleString()}`}
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontWeight: 700, fontSize: "16px" }}>Total</span>
-                <span
-                  style={{
-                    fontWeight: 900,
-                    fontSize: "20px",
-                    color: "#2E7D32",
-                  }}
-                >
-                  ₦{Number(order.total).toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            <div
-              style={{
-                backgroundColor: "white",
-                borderRadius: "16px",
-                padding: "20px",
-                border: "1px solid #E8EAED",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  marginBottom: "12px",
-                }}
-              >
-                Delivery Address
-              </h3>
-              <p
-                style={{
-                  fontSize: "14px",
-                  color: "#5F6368",
-                  lineHeight: 1.6,
-                  margin: 0,
-                }}
-              >
-                📍 {order.address}
-              </p>
-            </div>
-
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "10px" }}
-            >
-              {order.status === "delivered" && (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={handleReorder}
-                  disabled={reordering}
-                  style={{
-                    width: "100%",
-                    backgroundColor: reordering ? "#5A8F3E" : "#2E7D32",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "12px",
-                    padding: "16px",
-                    fontWeight: 700,
-                    cursor: reordering ? "not-allowed" : "pointer",
-                    fontSize: "15px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                  }}
-                >
-                  {reordering ? (
-                    <>
-                      <motion.span
-                        animate={{ rotate: 360 }}
-                        transition={{
-                          duration: 1,
-                          repeat: Infinity,
-                          ease: "linear",
-                        }}
-                      >
-                        ⏳
-                      </motion.span>
-                      Adding to cart...
-                    </>
-                  ) : (
-                    "🔄 Reorder All Items"
-                  )}
-                </motion.button>
-              )}
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate("/orders")}
-                style={{
-                  width: "100%",
-                  backgroundColor: "white",
-                  color: "#202124",
-                  border: "1px solid #E8EAED",
-                  borderRadius: "12px",
-                  padding: "14px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontSize: "15px",
-                }}
-              >
-                ← Back to Orders
-              </motion.button>
-            </div>
+            <span style={{ fontSize: 16, fontWeight: 700, color: "#374151" }}>
+              Total Amount
+            </span>
+            <span style={{ fontSize: 22, fontWeight: 900, color: "#1a1a1a" }}>
+              ₦{total.toLocaleString()}
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              color: "#9CA3AF",
+              marginTop: 4,
+              textAlign: "right",
+            }}
+          >
+            Paid via {order.payment_method || "Paystack"}
           </div>
         </div>
       </div>
-    </PageWrapper>
+
+      {/* Actions */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 20,
+          padding: "24px 32px",
+          border: "1px solid #E5E7EB",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 17,
+            fontWeight: 800,
+            color: "#0D1117",
+            margin: "0 0 16px",
+          }}
+        >
+          Order Actions
+        </h2>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {/* Cancel button */}
+          {canCancel && (
+            <button
+              onClick={handleCancel}
+              style={{
+                padding: "12px 24px",
+                borderRadius: 12,
+                border: "2px solid #EF4444",
+                background: "#FEF2F2",
+                color: "#DC2626",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = "#DC2626";
+                e.target.style.color = "#fff";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = "#FEF2F2";
+                e.target.style.color = "#DC2626";
+              }}
+            >
+              Cancel Order
+            </button>
+          )}
+
+          {/* Return button — only for delivered orders within 7 days */}
+          {canReturn && (
+            <button
+              onClick={() => setShowReturnModal(true)}
+              style={{
+                padding: "12px 24px",
+                borderRadius: 12,
+                border: "2px solid #F59E0B",
+                background: "#FEF3C7",
+                color: "#92400E",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+                transition: "all 0.2s",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#F59E0B";
+                e.currentTarget.style.color = "#fff";
+                e.currentTarget.style.borderColor = "#F59E0B";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#FEF3C7";
+                e.currentTarget.style.color = "#92400E";
+                e.currentTarget.style.borderColor = "#F59E0B";
+              }}
+            >
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 6,
+                  overflow: "hidden",
+                }}
+              >
+                <img
+                  src="https://images.unsplash.com/photo-1584824486509-112e4181ff6b?w=20&q=80"
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              </div>
+              Request Return
+            </button>
+          )}
+
+          {/* Return submitted confirmation */}
+          {returnSubmitted && (
+            <div
+              style={{
+                padding: "12px 20px",
+                borderRadius: 12,
+                background: "#D1FAE5",
+                color: "#065F46",
+                fontWeight: 700,
+                fontSize: 14,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              ✓ Return request submitted
+            </div>
+          )}
+
+          {/* Return ineligible notice */}
+          {order.status === "delivered" && !canReturn && !returnSubmitted && (
+            <div
+              style={{
+                padding: "12px 20px",
+                borderRadius: 12,
+                background: "#F9FAFB",
+                border: "1px solid #E5E7EB",
+                color: "#9CA3AF",
+                fontSize: 14,
+              }}
+            >
+              Return window has expired (7 days from delivery)
+            </div>
+          )}
+
+          <Link
+            to="/shop"
+            style={{
+              padding: "12px 24px",
+              borderRadius: 12,
+              background: "#2E7D32",
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: 14,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            Shop Again →
+          </Link>
+        </div>
+      </div>
+
+      {/* Return modal */}
+      {showReturnModal && (
+        <ReturnModal
+          order={order}
+          onClose={() => setShowReturnModal(false)}
+          onSubmitted={() => setReturnSubmitted(true)}
+        />
+      )}
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
   );
 }

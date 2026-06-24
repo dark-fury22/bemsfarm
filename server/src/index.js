@@ -1,36 +1,68 @@
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const rateLimit = require("express-rate-limit");
 const app = express();
 
-// MUST be before routes
+app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: [
+      "https://yourdomain.com",
+      "https://www.bemsfarms.com",
       "https://bemsfarm.vercel.app",
       "http://localhost:5173",
       "http://localhost:3000",
       process.env.FRONTEND_URL,
     ].filter(Boolean),
-    credentials: true, // CRITICAL: allows cookies to be sent
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 
-/* app.use(cors({
-  origin: [
-    'https://bemsfarms.vercel.app',
-    'http://localhost:5173'
-  ],
-  credentials: true
-}));
- */
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser()); // CRITICAL: parse cookies
+app.use(cookieParser());
 
-// Routes
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again after 15 minutes." },
+  skip: (req) => req.path === "/health" || req.path === "/test",
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many login attempts, please try again after 15 minutes.",
+  },
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "AI request limit reached. Please try again in an hour." },
+});
+
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many payment requests. Please slow down." },
+});
+
+app.use(generalLimiter);
+
 const authRoutes = require("./routes/auth");
 const ordersRoutes = require("./routes/orders");
 const productsRoutes = require("./routes/products");
@@ -39,20 +71,20 @@ const adminRoutes = require("./routes/admin");
 const aiRoutes = require("./routes/ai");
 const miscRoutes = require("./routes/misc");
 const advancedAiRoutes = require("./routes/advanced-ai");
+const zohoRoutes = require("./routes/zoho");
 
-app.use("/api/auth", authRoutes);
-app.use("/api/orders", ordersRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/orders", paymentLimiter, ordersRoutes);
 app.use("/api/products", productsRoutes);
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/ai", aiRoutes);
+app.use("/api/ai", aiLimiter, aiRoutes);
 app.use("/api", miscRoutes);
-app.use("/api/advanced-ai", advancedAiRoutes);
+app.use("/api/advanced-ai", aiLimiter, advancedAiRoutes);
+app.use("/api/zoho", zohoRoutes);
 
 app.get("/health", (req, res) => res.json({ status: "OK", time: new Date() }));
-app.get("/test", (req, res) => {
-  res.json({ message: "server works" });
-});
+app.get("/test", (req, res) => res.json({ message: "server works" }));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

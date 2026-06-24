@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { protect } = require("../middleware/authMiddleware");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 const {
   getStats,
   updateOrderStatus,
@@ -18,15 +18,15 @@ const {
 } = require("../controllers/returnsController");
 const pool = require("../db/pool");
 
-router.get("/stats", protect, getStats);
-router.get("/subscribers", protect, getSubscribers);
-router.post("/products", protect, addProduct);
-router.put("/products/:id", protect, updateProduct);
-router.delete("/products/:id", protect, deleteProduct);
-router.get("/orders", protect, getAllOrders);
-router.patch("/orders/:id/status", protect, updateOrderStatus);
-router.get("/returns", protect, getAllReturns);
-router.patch("/returns/:id", protect, updateReturn);
+router.get("/stats", protect, adminOnly, getStats);
+router.get("/subscribers", protect, adminOnly, getSubscribers);
+router.post("/products", protect, adminOnly, addProduct);
+router.put("/products/:id", protect, adminOnly, updateProduct);
+router.delete("/products/:id", protect, adminOnly, deleteProduct);
+router.get("/orders", protect, adminOnly, getAllOrders);
+router.patch("/orders/:id/status", protect, adminOnly, updateOrderStatus);
+router.get("/returns", protect, adminOnly, getAllReturns);
+router.patch("/returns/:id", protect, adminOnly, updateReturn);
 
 // Products CRUD
 router.get("/products", protect, async (req, res) => {

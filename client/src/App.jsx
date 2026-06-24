@@ -1,8 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
+
+import ComingSoonPage from "./pages/ComingSoonPage";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import OnboardingPage from "./pages/OnboardingPage";
 import HomePage from "./pages/HomePage";
 import ProductsPage from "./pages/ProductsPage";
 import ProductDetail from "./pages/ProductDetail";
@@ -16,18 +19,10 @@ import AboutPage from "./pages/AboutPage";
 import ContactPage from "./pages/ContactPage";
 import AdminPage from "./pages/AdminPage";
 import ReturnsPage from "./pages/ReturnsPage";
-import RecommendationsPage from "./pages/RecommendationsPage";
-import RecipeHelperPage from "./pages/RecipeHelperPage";
-import SemanticSearchPage from "./pages/SemanticSearchPage";
+import ChefBemsPage from "./pages/ChefBemsPage";
 import DynamicPricingPage from "./pages/DynamicPricingPage";
 import FraudDetectionPage from "./pages/FraudDetectionPage";
 import DemandForecastingPage from "./pages/DemandForecastingPage";
-import OnboardingPage from "./pages/OnboardingPage";
-
-// NOTE: DealsPage import removed — the Deals page has been retired
-// in favor of AI Recommendations. The route below 301-style redirects
-// anyone hitting the old /deals URL (bookmarks, old links, etc.)
-// straight to /recommendations so nothing breaks.
 
 const P = ({ children }) => <ProtectedRoute>{children}</ProtectedRoute>;
 
@@ -35,13 +30,14 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<LandingPage />} />
+        {/* Public */}
+        <Route path="/" element={<ComingSoonPage />} />
+        <Route path="/launch" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/semantic-search" element={<SemanticSearchPage />} />
         <Route path="/dynamic-pricing" element={<DynamicPricingPage />} />
+
         <Route
           path="/returns"
           element={
@@ -51,7 +47,7 @@ function App() {
           }
         />
 
-        {/* Protected routes */}
+        {/* Protected */}
         <Route
           path="/home"
           element={
@@ -140,13 +136,6 @@ function App() {
             </P>
           }
         />
-
-        {/* Deals page retired — redirect old links to Recommendations */}
-        <Route
-          path="/deals"
-          element={<Navigate to="/recommendations" replace />}
-        />
-
         <Route
           path="/admin"
           element={
@@ -155,41 +144,45 @@ function App() {
             </P>
           }
         />
-
         <Route
-          path="/recommendations"
+          path="/chef-chat"
           element={
             <P>
-              <RecommendationsPage />
+              <ChefBemsPage />
             </P>
           }
         />
-
-        <Route
-          path="/recipe-helper"
-          element={
-            <P>
-              <RecipeHelperPage />
-            </P>
-          }
-        />
-
         <Route
           path="/fraud-detection"
           element={
-            <ProtectedRoute>
+            <P>
               <FraudDetectionPage />
-            </ProtectedRoute>
+            </P>
           }
         />
         <Route
           path="/demand-forecasting"
           element={
-            <ProtectedRoute>
+            <P>
               <DemandForecastingPage />
-            </ProtectedRoute>
+            </P>
           }
         />
+
+        {/* Retired pages → redirect to Chef Bems */}
+        <Route
+          path="/semantic-search"
+          element={<Navigate to="/chef-chat" replace />}
+        />
+        <Route
+          path="/recipe-helper"
+          element={<Navigate to="/chef-chat" replace />}
+        />
+        <Route
+          path="/recommendations"
+          element={<Navigate to="/chef-chat" replace />}
+        />
+        <Route path="/deals" element={<Navigate to="/chef-chat" replace />} />
       </Routes>
     </BrowserRouter>
   );

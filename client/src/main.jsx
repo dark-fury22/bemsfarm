@@ -10,7 +10,7 @@ import "./styles/theme.css";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId="399237493446-7k3fijdcv9q4d6pfr4bhnllcbi13vt97.apps.googleusercontent.com">
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
       <AuthProvider>
         <CartProvider>
           <App />

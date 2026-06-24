@@ -1,30 +1,91 @@
+// client/src/components/AIChatbot.jsx
+// Upgraded from generic assistant → AI Kitchen Chef
+// Acts like a personal Nigerian chef/cook:
+//  - Answers any cooking question
+//  - Suggests recipes with BemsFarms ingredients
+//  - Gives nutritional advice
+//  - Recommends products based on health goals
+//  - Replaces the standalone RecommendationsPage chatbot behavior
+
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+
+const CHEF_AVATAR =
+  "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=48&q=80";
 
 const QUICK_QUESTIONS = [
   {
-    text: "🛒 What products do you sell?",
-    value: "What fresh Nigerian products do you have available?",
+    text: "How do I cook jollof rice?",
+    value:
+      "Give me a step-by-step recipe for Nigerian jollof rice using BemsFarms ingredients",
   },
   {
-    text: "🚚 How fast is delivery?",
-    value: "How fast is delivery and what areas do you cover?",
+    text: "Best foods for diabetes?",
+    value:
+      "What Nigerian foods from BemsFarms are good for someone managing diabetes?",
   },
   {
-    text: "🍲 Recipe ideas with beans?",
-    value: "Give me a Nigerian recipe idea using beans from BemsFarms",
+    text: "Egusi soup recipe",
+    value:
+      "How do I make egusi soup? What ingredients do I need from BemsFarms?",
   },
   {
-    text: "💰 Any discounts available?",
-    value: "Do you have any discount codes or promotions right now?",
+    text: "Healthy foods for weight loss?",
+    value: "What BemsFarms products should I buy for a weight loss diet?",
   },
-  { text: "↩️ Return policy?", value: "What is the return and refund policy?" },
   {
-    text: "🌾 Best products for diabetes?",
-    value: "What BemsFarms products are good for someone with diabetes?",
+    text: "What can I cook with garri?",
+    value: "What can I cook or make using garri from BemsFarms?",
+  },
+  {
+    text: "Recipe for pepper soup",
+    value:
+      "Give me a Nigerian pepper soup recipe with ingredients available on BemsFarms",
+  },
+  {
+    text: "Foods for a pregnant woman?",
+    value: "What Nigerian foods from BemsFarms are best for a pregnant woman?",
+  },
+  {
+    text: "How to store palm oil?",
+    value: "How do I properly store palm oil to keep it fresh?",
   },
 ];
+
+// The chef system prompt — sent with every message
+const CHEF_SYSTEM_PROMPT = `You are Chef Bems, the friendly AI kitchen chef and food expert for BemsFarms — Nigeria's premier farm-fresh food marketplace.
+
+Your personality: Warm, encouraging, knowledgeable, and specifically expert in Nigerian cuisine. You speak like a friendly Nigerian chef who genuinely loves food.
+
+Your expertise:
+- Nigerian recipes (jollof rice, egusi soup, pepper soup, eba, moi moi, pottage, suya, etc.)
+- Nigerian cooking techniques and methods
+- Nutritional advice tailored to Nigerian dietary culture
+- Food storage and freshness tips
+- Health-based food recommendations (diabetes, pregnancy, weight loss, blood pressure, etc.)
+- Pairing BemsFarms products with recipes
+
+BemsFarms products you can recommend from:
+Grains: Ofada Rice, Brown Rice, Garri (Ijebu), White Rice, Millet, Sorghum, Dried Maize
+Oils: Palm Oil, Groundnut Oil, Coconut Oil
+Legumes: Black-eyed Beans, Brown Beans, Soya Beans, Groundnut
+Vegetables: Fresh Tomatoes, Fresh Pepper, Ugu Leaves, Okra, Onions (Red & White), Cabbage, Carrot, Scent Leaf, Bitter Leaf, Ewedu, Waterleaf, Garden Egg, Garden Egg (African Eggplant)
+Tubers: Yellow Yam (Puna), White Yam, Cassava, Sweet Potato, Cocoyam, Plantain
+Seasonings: Dried Crayfish, Dried Pepper (Atarodo), Curry Powder, Dried Thyme, Fresh Ginger, Turmeric, Uziza, Ogiri
+Fruits: Watermelon, Pineapple, Pawpaw (Papaya), Plantain, Mango, Orange, Banana, Avocado
+Leafy Greens: Ugu Leaves, Spinach (Tete), Oha Leaves, Waterleaf
+
+Rules:
+1. Always be helpful and never refuse a food or cooking question
+2. When you mention ingredients, note if they're available on BemsFarms
+3. Give practical, step-by-step cooking advice
+4. Keep responses warm but concise — use short paragraphs or numbered steps
+5. Occasionally add a Nigerian cooking tip or proverb to make it feel authentic
+6. If someone asks about health conditions, give Nigerian-food-specific advice
+7. You can recommend they shop at BemsFarms but don't be pushy about it
+8. Never refuse to answer food questions — you are a chef, not a policy bot`;
 
 export default function AIChatbot() {
   const [open, setOpen] = useState(false);
@@ -32,13 +93,16 @@ export default function AIChatbot() {
     {
       role: "assistant",
       content:
-        "Welcome to BemsFarms! 🌿 I'm your AI shopping assistant. I can help you find fresh products, suggest recipes, give dietary advice, or answer any questions. How can I help you today?",
+        "Welcome to BemsFarms! 👨‍🍳 I'm Chef Bems, your personal AI kitchen chef.\n\nAsk me anything — recipes, cooking tips, what to cook with your ingredients, or the best foods for your health goals. I'm here to help you eat well the Nigerian way! 🌿",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [unread, setUnread] = useState(1);
+  const [tab, setTab] = useState("chat"); // "chat" | "recipes"
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (open) {
@@ -48,154 +112,217 @@ export default function AIChatbot() {
         100,
       );
     }
-  }, [open, messages]);
+  }, [open]);
 
-  const sendMessage = async (textOverride) => {
-    const text = (textOverride || input).trim();
-    if (!text || loading) return;
+  useEffect(() => {
+    if (open && messages.length > 1) {
+      setTimeout(
+        () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
+        50,
+      );
+    }
+  }, [messages]);
 
+  const sendMessage = async (text) => {
+    const content = (text || input).trim();
+    if (!content || loading) return;
     setInput("");
-    const newMessages = [...messages, { role: "user", content: text }];
+
+    const userMsg = { role: "user", content };
+    const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setLoading(true);
 
     try {
-      // Use backend proxy — no CORS issues
-      const res = await api.post("/ai/chat", {
-        messages: newMessages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
+      // Build conversation history for the API
+      const conversationHistory = newMessages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const response = await api.post("/ai/chat", {
+        messages: conversationHistory,
+        systemPrompt: CHEF_SYSTEM_PROMPT,
       });
-      const reply = res.data.reply;
+
+      const reply =
+        response.data?.reply ||
+        response.data?.message ||
+        response.data?.content ||
+        "I'm having a moment — please try again!";
+
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-      if (!open) setUnread((prev) => prev + 1);
+
+      if (!open) setUnread((n) => n + 1);
     } catch (err) {
-      console.error("Chat error:", err);
-      const fallback = getFallbackResponse(text);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: fallback },
+        {
+          role: "assistant",
+          content:
+            "Sorry, I couldn't reach my kitchen brain right now 🍳 Please check your connection and try again.",
+        },
       ]);
     } finally {
       setLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
-  // Smart fallback if AI is unavailable
-  const getFallbackResponse = (text) => {
-    const lower = text.toLowerCase();
-    if (lower.includes("deliver"))
-      return "🚚 We deliver same-day in Lagos (2-4 hours) and 1-3 days nationwide. Free delivery on orders over ₦15,000!";
-    if (lower.includes("return") || lower.includes("refund"))
-      return "↩️ Returns are accepted within 7 days of delivery. Submit a return request from your Orders page. Refunds take 3-5 business days.";
-    if (lower.includes("discount") || lower.includes("coupon"))
-      return "💰 Use code FRESH20 for 20% off your order! New customers also get BEMS10 for 10% off.";
-    if (lower.includes("product") || lower.includes("sell"))
-      return "🌾 We sell fresh Nigerian produce: Ofada Rice, Long Grain Rice, Palm Oil, Groundnut Oil, Beans, Garri, Fresh Tomatoes, Dried Crayfish, Cocoyam, Ugu Leaves and more!";
-    if (lower.includes("pay"))
-      return "💳 We accept card payments, bank transfer, USSD, and cash on delivery — all secured by Paystack.";
-    return "😊 I'm having trouble connecting right now. Please contact us at hello@bemsfarms.ng or call +234 800 BEMS FARM. No wahala!";
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const formatMessage = (content) => {
+    // Convert **bold**, numbered lists, and line breaks to formatted elements
+    return content.split("\n").map((line, i) => {
+      const boldFormatted = line.replace(
+        /\*\*(.*?)\*\*/g,
+        "<strong>$1</strong>",
+      );
+      return (
+        <span key={i}>
+          <span dangerouslySetInnerHTML={{ __html: boldFormatted }} />
+          {i < content.split("\n").length - 1 && <br />}
+        </span>
+      );
+    });
   };
 
   return (
     <>
+      {/* ── FLOATING BUTTON ──────────────────────────── */}
+      <motion.button
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.94 }}
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          position: "fixed",
+          bottom: 24,
+          right: 24,
+          zIndex: 500,
+          width: 58,
+          height: 58,
+          borderRadius: "50%",
+          border: "none",
+          cursor: "pointer",
+          overflow: "hidden",
+          padding: 0,
+          boxShadow: "0 8px 28px rgba(27,67,50,0.35)",
+        }}
+      >
+        <img
+          src={CHEF_AVATAR}
+          alt="Chef Bems"
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+        {unread > 0 && !open && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              backgroundColor: "#EF4444",
+              color: "white",
+              width: 18,
+              height: 18,
+              borderRadius: "50%",
+              fontSize: 10,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2px solid white",
+            }}
+          >
+            {unread}
+          </motion.span>
+        )}
+      </motion.button>
+
+      {/* ── CHAT WINDOW ──────────────────────────────── */}
       <AnimatePresence>
         {open && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            transition={{ type: "spring", stiffness: 300, damping: 28 }}
             style={{
               position: "fixed",
-              bottom: "90px",
-              right: "20px",
-              zIndex: 9999,
-              width: "380px",
-              maxWidth: "calc(100vw - 32px)",
+              bottom: 92,
+              right: 24,
+              zIndex: 500,
+              width: "min(380px, calc(100vw - 32px))",
+              height: "min(560px, calc(100vh - 120px))",
               backgroundColor: "white",
-              borderRadius: "24px",
-              boxShadow:
-                "0 24px 80px rgba(0,0,0,0.2), 0 8px 32px rgba(27,67,50,0.15)",
-              border: "1px solid rgba(27,67,50,0.1)",
+              borderRadius: 20,
+              overflow: "hidden",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.18)",
+              border: "1px solid #E5E7EB",
               display: "flex",
               flexDirection: "column",
-              height: "540px",
             }}
           >
             {/* Header */}
             <div
               style={{
-                background: "linear-gradient(135deg, #1B4332 0%, #40916C 100%)",
-                padding: "16px 20px",
-                borderRadius: "24px 24px 0 0",
+                background: "linear-gradient(135deg, #1B4332, #2D6A4F)",
+                padding: "14px 16px",
                 display: "flex",
                 alignItems: "center",
-                gap: "12px",
+                gap: 12,
                 flexShrink: 0,
               }}
             >
               <div
                 style={{
-                  width: "42px",
-                  height: "42px",
+                  width: 40,
+                  height: 40,
                   borderRadius: "50%",
-                  background: "rgba(255,255,255,0.15)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "22px",
-                  border: "2px solid rgba(255,255,255,0.3)",
+                  overflow: "hidden",
+                  border: "2px solid rgba(255,255,255,0.4)",
+                  flexShrink: 0,
                 }}
               >
-                🌿
+                <img
+                  src={CHEF_AVATAR}
+                  alt="Chef Bems"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               </div>
               <div style={{ flex: 1 }}>
-                <p
-                  style={{ color: "white", fontWeight: 700, fontSize: "15px" }}
-                >
-                  BemsFarms AI
-                </p>
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    marginTop: "1px",
+                    color: "#fff",
+                    fontWeight: 800,
+                    fontSize: 14,
+                    fontFamily: "Syne, sans-serif",
                   }}
                 >
-                  <motion.div
-                    animate={{ scale: [1, 1.3, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    style={{
-                      width: "7px",
-                      height: "7px",
-                      borderRadius: "50%",
-                      backgroundColor: "#4ADE80",
-                    }}
-                  />
-                  <span
-                    style={{
-                      color: "rgba(255,255,255,0.75)",
-                      fontSize: "12px",
-                    }}
-                  >
-                    {loading ? "Thinking..." : "Online — ready to help"}
-                  </span>
+                  Chef Bems
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 11 }}>
+                  Your AI Kitchen Chef · Always Online
                 </div>
               </div>
               <button
                 onClick={() => setOpen(false)}
                 style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "10px",
                   background: "rgba(255,255,255,0.15)",
                   border: "none",
+                  color: "#fff",
+                  borderRadius: 8,
+                  width: 28,
+                  height: 28,
                   cursor: "pointer",
-                  color: "white",
-                  fontSize: "18px",
+                  fontSize: 16,
+                  flexShrink: 0,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -205,341 +332,264 @@ export default function AIChatbot() {
               </button>
             </div>
 
-            {/* Messages area */}
+            {/* Messages */}
             <div
               style={{
                 flex: 1,
                 overflowY: "auto",
-                padding: "16px",
+                padding: "14px 14px 8px",
                 display: "flex",
                 flexDirection: "column",
-                gap: "12px",
+                gap: 10,
                 scrollbarWidth: "thin",
-                scrollbarColor: "#E5E7EB transparent",
               }}
             >
               {messages.map((msg, i) => (
-                <motion.div
+                <div
                   key={i}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
                   style={{
                     display: "flex",
                     justifyContent:
                       msg.role === "user" ? "flex-end" : "flex-start",
+                    gap: 8,
                     alignItems: "flex-end",
-                    gap: "8px",
                   }}
                 >
                   {msg.role === "assistant" && (
                     <div
                       style={{
-                        width: "30px",
-                        height: "30px",
+                        width: 28,
+                        height: 28,
                         borderRadius: "50%",
+                        overflow: "hidden",
                         flexShrink: 0,
-                        background: "linear-gradient(135deg, #1B4332, #40916C)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "15px",
                       }}
                     >
-                      🌿
+                      <img
+                        src={CHEF_AVATAR}
+                        alt=""
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
                     </div>
                   )}
                   <div
                     style={{
-                      maxWidth: "78%",
-                      padding: "10px 14px",
-                      borderRadius:
-                        msg.role === "user"
-                          ? "20px 20px 4px 20px"
-                          : "20px 20px 20px 4px",
+                      maxWidth: "82%",
                       backgroundColor:
                         msg.role === "user" ? "#1B4332" : "#F8FAFB",
-                      color: msg.role === "user" ? "white" : "#1F2937",
-                      fontSize: "13px",
-                      lineHeight: 1.55,
-                      fontFamily: "Nunito, sans-serif",
+                      color: msg.role === "user" ? "white" : "#111827",
+                      borderRadius:
+                        msg.role === "user"
+                          ? "18px 18px 4px 18px"
+                          : "18px 18px 18px 4px",
+                      padding: "10px 13px",
+                      fontSize: 13,
+                      lineHeight: 1.6,
                       border:
-                        msg.role === "assistant" ? "1px solid #F3F4F6" : "none",
-                      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                        msg.role === "assistant" ? "1px solid #E5E7EB" : "none",
+                      fontFamily: "Nunito, sans-serif",
+                      whiteSpace: "pre-wrap",
                     }}
                   >
-                    {msg.content}
+                    {formatMessage(msg.content)}
                   </div>
-                  {msg.role === "user" && (
-                    <div
-                      style={{
-                        width: "30px",
-                        height: "30px",
-                        borderRadius: "50%",
-                        flexShrink: 0,
-                        backgroundColor: "#F59E0B",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "white",
-                        fontWeight: 700,
-                        fontSize: "13px",
-                      }}
-                    >
-                      👤
-                    </div>
-                  )}
-                </motion.div>
+                </div>
               ))}
 
-              {/* Typing indicator */}
               {loading && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-end",
-                    gap: "8px",
-                  }}
+                <div
+                  style={{ display: "flex", gap: 8, alignItems: "flex-end" }}
                 >
                   <div
                     style={{
-                      width: "30px",
-                      height: "30px",
+                      width: 28,
+                      height: 28,
                       borderRadius: "50%",
-                      background: "linear-gradient(135deg, #1B4332, #40916C)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "15px",
+                      overflow: "hidden",
+                      flexShrink: 0,
                     }}
                   >
-                    🌿
+                    <img
+                      src={CHEF_AVATAR}
+                      alt=""
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
                   </div>
                   <div
                     style={{
                       backgroundColor: "#F8FAFB",
-                      border: "1px solid #F3F4F6",
+                      border: "1px solid #E5E7EB",
+                      borderRadius: "18px 18px 18px 4px",
                       padding: "12px 16px",
-                      borderRadius: "20px 20px 20px 4px",
                       display: "flex",
-                      gap: "5px",
+                      gap: 5,
                       alignItems: "center",
                     }}
                   >
-                    {[0, 1, 2].map((i) => (
-                      <motion.div
+                    {[0, 0.2, 0.4].map((delay, i) => (
+                      <motion.span
                         key={i}
-                        animate={{
-                          y: [0, -5, 0],
-                          backgroundColor: ["#9CA3AF", "#40916C", "#9CA3AF"],
-                        }}
-                        transition={{
-                          duration: 0.7,
-                          repeat: Infinity,
-                          delay: i * 0.15,
-                        }}
+                        animate={{ y: [0, -5, 0] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay }}
                         style={{
-                          width: "7px",
-                          height: "7px",
+                          width: 7,
+                          height: 7,
                           borderRadius: "50%",
-                          backgroundColor: "#9CA3AF",
+                          background: "#1B4332",
+                          display: "inline-block",
                         }}
                       />
                     ))}
                   </div>
-                </motion.div>
+                </div>
               )}
               <div ref={bottomRef} />
             </div>
 
-            {/* Quick questions — show only for first message */}
-            {messages.length === 1 && (
-              <div style={{ padding: "0 14px 10px", flexShrink: 0 }}>
-                <p
+            {/* Quick questions — show only at start */}
+            {messages.length <= 1 && (
+              <div
+                style={{
+                  padding: "0 14px 10px",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                }}
+              >
+                {QUICK_QUESTIONS.slice(0, 4).map((q, i) => (
+                  <motion.button
+                    key={i}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => sendMessage(q.value)}
+                    style={{
+                      background: "#F0FFF4",
+                      border: "1px solid #A7F3D0",
+                      borderRadius: 20,
+                      padding: "5px 12px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#1B4332",
+                      cursor: "pointer",
+                      fontFamily: "Nunito, sans-serif",
+                    }}
+                  >
+                    {q.text}
+                  </motion.button>
+                ))}
+              </div>
+            )}
+
+            {/* Shop button after conversation starts */}
+            {messages.length > 3 && (
+              <div style={{ padding: "0 14px 8px" }}>
+                <button
+                  onClick={() => {
+                    navigate("/products");
+                    setOpen(false);
+                  }}
                   style={{
-                    fontSize: "11px",
-                    color: "#9CA3AF",
-                    marginBottom: "6px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    fontWeight: 600,
+                    width: "100%",
+                    padding: "9px",
+                    background: "linear-gradient(135deg, #1B4332, #2D6A4F)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontFamily: "Nunito, sans-serif",
                   }}
                 >
-                  Quick questions
-                </p>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  {QUICK_QUESTIONS.slice(0, 4).map((q) => (
-                    <button
-                      key={q.text}
-                      onClick={() => sendMessage(q.value)}
-                      style={{
-                        padding: "6px 12px",
-                        backgroundColor: "#F0FFF4",
-                        border: "1px solid #BBF7D0",
-                        borderRadius: "50px",
-                        cursor: "pointer",
-                        fontSize: "12px",
-                        color: "#065F46",
-                        fontWeight: 500,
-                        fontFamily: "Nunito, sans-serif",
-                        transition: "all 0.2s",
-                        whiteSpace: "nowrap",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#D1FAE5")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#F0FFF4")
-                      }
-                    >
-                      {q.text}
-                    </button>
-                  ))}
-                </div>
+                  Shop Fresh Ingredients →
+                </button>
               </div>
             )}
 
             {/* Input */}
             <div
               style={{
-                padding: "12px 14px",
+                padding: "10px 14px 14px",
                 borderTop: "1px solid #F3F4F6",
                 display: "flex",
-                gap: "8px",
+                gap: 8,
                 alignItems: "flex-end",
                 flexShrink: 0,
-                borderRadius: "0 0 24px 24px",
               }}
             >
               <textarea
+                ref={inputRef}
                 value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  // Auto-resize
-                  e.target.style.height = "auto";
-                  e.target.style.height =
-                    Math.min(e.target.scrollHeight, 80) + "px";
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder="Ask me anything... (Enter to send)"
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask Chef Bems anything..."
                 rows={1}
                 style={{
                   flex: 1,
-                  padding: "10px 14px",
-                  border: "1px solid #E5E7EB",
-                  borderRadius: "14px",
-                  fontSize: "13px",
+                  border: "1.5px solid #E5E7EB",
+                  borderRadius: 12,
+                  padding: "9px 12px",
+                  fontSize: 13,
                   outline: "none",
                   resize: "none",
                   fontFamily: "Nunito, sans-serif",
                   lineHeight: 1.5,
-                  minHeight: "40px",
-                  maxHeight: "80px",
-                  color: "#111827",
+                  maxHeight: 80,
+                  overflowY: "auto",
                   transition: "border-color 0.2s",
                 }}
-                onFocus={(e) => (e.target.style.borderColor = "#40916C")}
+                onFocus={(e) => (e.target.style.borderColor = "#1B4332")}
                 onBlur={(e) => (e.target.style.borderColor = "#E5E7EB")}
               />
               <motion.button
-                whileTap={{ scale: 0.9 }}
                 whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || loading}
+                disabled={loading || !input.trim()}
                 style={{
-                  width: "42px",
-                  height: "42px",
-                  borderRadius: "14px",
-                  border: "none",
-                  flexShrink: 0,
+                  width: 38,
+                  height: 38,
+                  borderRadius: "50%",
                   background:
-                    !input.trim() || loading
+                    loading || !input.trim()
                       ? "#E5E7EB"
                       : "linear-gradient(135deg, #1B4332, #40916C)",
-                  cursor: !input.trim() || loading ? "not-allowed" : "pointer",
+                  border: "none",
+                  cursor: loading || !input.trim() ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "18px",
-                  transition: "all 0.2s",
-                  boxShadow:
-                    !input.trim() || loading
-                      ? "none"
-                      : "0 4px 14px rgba(27,67,50,0.35)",
+                  flexShrink: 0,
+                  transition: "background 0.2s",
                 }}
               >
-                {loading ? "⏳" : "➤"}
+                <svg
+                  width="16"
+                  height="16"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke={loading || !input.trim() ? "#9CA3AF" : "white"}
+                  strokeWidth="2.5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 19V5m0 0l-7 7m7-7l7 7"
+                  />
+                </svg>
               </motion.button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* FAB */}
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setOpen(!open)}
-        animate={!open && unread > 0 ? { scale: [1, 1.1, 1] } : {}}
-        transition={
-          !open && unread > 0 ? { duration: 2, repeat: Infinity } : {}
-        }
-        style={{
-          position: "fixed",
-          bottom: "24px",
-          right: "20px",
-          zIndex: 10000,
-          width: "62px",
-          height: "62px",
-          borderRadius: "50%",
-          border: "none",
-          background: open
-            ? "linear-gradient(135deg, #EF4444, #DC2626)"
-            : "linear-gradient(135deg, #1B4332, #40916C)",
-          cursor: "pointer",
-          boxShadow: open
-            ? "0 8px 24px rgba(239,68,68,0.4)"
-            : "0 8px 28px rgba(27,67,50,0.45)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: open ? "22px" : "28px",
-          transition: "background 0.3s",
-        }}
-      >
-        {open ? "✕" : "🌿"}
-        {!open && unread > 0 && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            style={{
-              position: "absolute",
-              top: "-2px",
-              right: "-2px",
-              minWidth: "20px",
-              height: "20px",
-              borderRadius: "10px",
-              backgroundColor: "#F59E0B",
-              border: "2px solid white",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "10px",
-              fontWeight: 800,
-              color: "white",
-              padding: "0 4px",
-            }}
-          >
-            {unread}
-          </motion.div>
-        )}
-      </motion.button>
     </>
   );
 }

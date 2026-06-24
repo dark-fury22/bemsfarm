@@ -1,27 +1,34 @@
 import axios from "axios";
 
+// ─────────────────────────────────────────────
+// BASE AXIOS INSTANCE
+// ─────────────────────────────────────────────
 const api = axios.create({
-  baseURL:
-    import.meta.env.VITE_API_URL || "https://bemsfarms-api.onrender.com/api",
+  baseURL: import.meta.env.VITE_API_URL || "https://bemsfarms-api.onrender.com",
   timeout: 15000,
-  withCredentials: true, // sends cookies (needed for refresh token)
+  withCredentials: true,
 });
 
-// ── Request Interceptor: attach JWT token ─────────────────────
+// ─────────────────────────────────────────────
+// REQUEST INTERCEPTOR (Attach token)
+// ─────────────────────────────────────────────
 api.interceptors.request.use(
   (config) => {
-    // Try localStorage first, then sessionStorage
     const token =
       localStorage.getItem("token") || sessionStorage.getItem("token");
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
   (error) => Promise.reject(error),
 );
 
-// ── Response Interceptor: handle 401 / token refresh ─────────
+// ─────────────────────────────────────────────
+// RESPONSE INTERCEPTOR (Refresh token flow)
+// ─────────────────────────────────────────────
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -38,10 +45,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If 401 and not already retrying
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // Queue requests while refreshing
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then((token) => {
@@ -54,23 +59,31 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Try to refresh token
         const res = await axios.post(
-          `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/auth/refresh`,
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+          }/auth/refresh`,
           {},
           { withCredentials: true },
         );
+
         const newToken = res.data.token;
+
         localStorage.setItem("token", newToken);
+
         api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
+
         processQueue(null, newToken);
+
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // Refresh failed — clear auth and redirect to login
+
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+
         window.location.href = "/login";
+
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -81,4 +94,22 @@ api.interceptors.response.use(
   },
 );
 
+// ─────────────────────────────────────────────
+// ORDERS API (FIXED)
+// ─────────────────────────────────────────────
+export const ordersAPI = {
+  getAll: (params) => api.get("/orders", { params }),
+
+  getById: (id) => api.get(`/orders/${id}`),
+
+  create: (data) => api.post("/orders", data),
+
+  cancel: (id, reason) => api.patch(`/orders/${id}/cancel`, { reason }),
+
+  updateStatus: (id, status) => api.patch(`/orders/${id}/status`, { status }),
+};
+
+// ─────────────────────────────────────────────
+// EXPORT BASE API (optional but useful)
+// ─────────────────────────────────────────────
 export default api;

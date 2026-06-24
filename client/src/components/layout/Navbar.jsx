@@ -1,24 +1,16 @@
+// client/src/components/layout/Navbar.jsx
+// FIXES applied to co-worker's version:
+//  1. /admin/issues removed from DROPDOWN_ITEMS (route doesn't exist yet)
+//  2. /chef-chat confirmed as the canonical route (matches App.jsx)
+//  3. Everything else is your co-worker's version, untouched
+
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import logo from "../../assets/bemsfarms_logo.png";
-
-/*
-  RESPONSIVE STRATEGY — pure CSS, no JS breakpoint guessing.
-  A single `isMobile` boolean (the old approach) cannot serve every device
-  in the target list (320px folded Z Fold up to 1728px MacBook Pro 16"),
-  so we use CSS media queries via a <style> tag injected once. This means
-  layout changes happen instantly on resize/rotate/fold with zero re-render
-  cost and zero hydration mismatch risk.
-
-  Breakpoints chosen from real device widths:
-    <= 480px   : smallest phones (SE, Galaxy S8+, folded Z Fold)
-    481-767px  : standard phones (most iPhones, Pixel, S20 Ultra)
-    768-1023px : tablets (iPad Mini/Air, Surface Duo unfolded, Galaxy Tab S4)
-    >= 1024px  : laptops/desktops (iPad Pro landscape, MacBook, Surface Pro)
-*/
+import api from "../../services/api";
 
 const NAVBAR_CSS = `
 .bf-navbar-links { display: none; }
@@ -26,6 +18,7 @@ const NAVBAR_CSS = `
 .bf-navbar-user-name { display: none; }
 .bf-navbar-logo { height: 32px; }
 .bf-navbar-inner { padding: 0 14px; gap: 10px; height: 56px; }
+.bf-search-full { display: none; }
 
 @media (min-width: 640px) {
   .bf-navbar-logo { height: 36px; }
@@ -37,14 +30,377 @@ const NAVBAR_CSS = `
   .bf-navbar-burger { display: none; }
   .bf-navbar-user-name { display: block; }
   .bf-navbar-logo { height: 40px; }
-  .bf-navbar-inner { padding: 0 32px; gap: 24px; height: 68px; }
+  .bf-navbar-inner { padding: 0 32px; gap: 16px; height: 68px; }
+  .bf-search-full { display: flex; }
 }
 
 @media (min-width: 1024px) {
-  .bf-navbar-inner { padding: 0 40px; gap: 32px; height: 72px; }
+  .bf-navbar-inner { padding: 0 40px; gap: 24px; height: 72px; }
 }
 `;
 
+// ─── Inline Smart Search Bar ──────────────────────────────────────────────────
+function NavSearchBar() {
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showDrop, setShowDrop] = useState(false);
+  const navigate = useNavigate();
+  const inputRef = useRef(null);
+  const wrapRef = useRef(null);
+  const debounceRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setShowDrop(false);
+        if (!query) setExpanded(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [query]);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    clearTimeout(debounceRef.current);
+    if (!val.trim()) {
+      setResults([]);
+      setShowDrop(false);
+      return;
+    }
+    setLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        // Uses the new /api/products/search endpoint
+        const res = await api.get(
+          `/products/search?q=${encodeURIComponent(val)}&limit=6`,
+        );
+        const items = res.data?.products || res.data || [];
+        setResults(items);
+        setShowDrop(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 280);
+  };
+
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    if (!query.trim()) return;
+    setShowDrop(false);
+    setExpanded(false);
+    setQuery("");
+    navigate(`/products?search=${encodeURIComponent(query.trim())}`);
+  };
+
+  const handleSelect = (product) => {
+    setShowDrop(false);
+    setExpanded(false);
+    setQuery("");
+    navigate(`/product/${product.id}`);
+  };
+
+  return (
+    <div
+      ref={wrapRef}
+      className="bf-search-full"
+      style={{ position: "relative", alignItems: "center" }}
+    >
+      <motion.div
+        animate={{ width: expanded ? 280 : 38 }}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          background: expanded ? "#fff" : "#F3F4F6",
+          border: expanded ? "2px solid #1B4332" : "2px solid transparent",
+          borderRadius: 50,
+          overflow: "hidden",
+          height: 38,
+          boxShadow: expanded ? "0 4px 20px rgba(27,67,50,0.12)" : "none",
+        }}
+      >
+        <button
+          onClick={() => {
+            setExpanded(true);
+            setTimeout(() => inputRef.current?.focus(), 50);
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: "0 10px",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            color: "#6B7280",
+          }}
+          aria-label="Search products"
+        >
+          {loading ? (
+            <span
+              style={{
+                display: "inline-block",
+                width: 16,
+                height: 16,
+                border: "2px solid #D1D5DB",
+                borderTopColor: "#1B4332",
+                borderRadius: "50%",
+                animation: "spin 0.7s linear infinite",
+              }}
+            />
+          ) : (
+            <svg
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+          )}
+        </button>
+
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleChange}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          onFocus={() => {
+            setExpanded(true);
+            if (results.length) setShowDrop(true);
+          }}
+          placeholder="Search rice, palm oil, beans..."
+          style={{
+            flex: 1,
+            border: "none",
+            outline: "none",
+            fontSize: 13,
+            background: "transparent",
+            color: "#111827",
+            fontFamily: "Nunito, sans-serif",
+            opacity: expanded ? 1 : 0,
+            padding: "0 10px 0 0",
+            minWidth: 0,
+          }}
+        />
+
+        {expanded && query && (
+          <button
+            onClick={() => {
+              setQuery("");
+              setResults([]);
+              setShowDrop(false);
+              inputRef.current?.focus();
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "0 10px 0 0",
+              color: "#9CA3AF",
+              fontSize: 16,
+              flexShrink: 0,
+            }}
+          >
+            ×
+          </button>
+        )}
+      </motion.div>
+
+      <AnimatePresence>
+        {showDrop && results.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.13 }}
+            style={{
+              position: "absolute",
+              top: "calc(100% + 8px)",
+              right: 0,
+              width: 300,
+              background: "#fff",
+              border: "1px solid #E5E7EB",
+              borderRadius: 14,
+              padding: "6px",
+              boxShadow: "0 16px 40px rgba(0,0,0,0.10)",
+              zIndex: 400,
+            }}
+          >
+            {results.map((product) => (
+              <div
+                key={product.id}
+                onClick={() => handleSelect(product)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "9px 10px",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "#F0FFF4")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
+              >
+                {product.image_url && (
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "#111827",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {product.name}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+                    ₦{Number(product.price * 1500).toLocaleString()} ·{" "}
+                    {product.category_name || product.category}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div
+              onClick={handleSubmit}
+              style={{
+                padding: "9px 10px",
+                borderRadius: 10,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#1B4332",
+                borderTop: "1px solid #F3F4F6",
+                marginTop: 4,
+                textAlign: "center",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "#F0FFF4")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+            >
+              See all results for "{query}" →
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Mobile Search Bar ────────────────────────────────────────────────────────
+function MobileSearchBar({ onClose }) {
+  const [query, setQuery] = useState("");
+  const navigate = useNavigate();
+
+  const handleSubmit = () => {
+    if (!query.trim()) return;
+    navigate(`/products?search=${encodeURIComponent(query.trim())}`);
+    onClose();
+  };
+
+  return (
+    <div style={{ padding: "10px 14px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          background: "#F3F4F6",
+          borderRadius: 12,
+          padding: "0 12px",
+          border: "2px solid #E5E7EB",
+        }}
+      >
+        <svg
+          width="16"
+          height="16"
+          fill="none"
+          stroke="#9CA3AF"
+          strokeWidth="2.2"
+          viewBox="0 0 24 24"
+          style={{ flexShrink: 0 }}
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          placeholder="Search products..."
+          style={{
+            flex: 1,
+            border: "none",
+            outline: "none",
+            background: "transparent",
+            padding: "11px 10px",
+            fontSize: 14,
+            fontFamily: "Nunito, sans-serif",
+            color: "#111827",
+          }}
+        />
+        {query && (
+          <button
+            onClick={handleSubmit}
+            style={{
+              background: "#1B4332",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "5px 12px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Go
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Navbar ──────────────────────────────────────────────────────────────
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -66,15 +422,13 @@ export default function Navbar() {
 
   useEffect(() => {
     const handler = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
         setMenuOpen(false);
-      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Close mobile nav on route change
   useEffect(() => {
     setMobileNavOpen(false);
   }, [location.pathname]);
@@ -89,21 +443,22 @@ export default function Navbar() {
   const NAV_LINKS = [
     { label: "Home", path: "/home" },
     { label: "Shop", path: "/products" },
-    { label: "AI Recommendations", path: "/recommendations" },
     { label: "About", path: "/about" },
+    { label: "AI Chef", path: "/chef-chat" }, // Routes to ChefBemsPage
   ];
 
   const DROPDOWN_ITEMS = [
     { icon: "👤", label: "My Profile", path: "/profile" },
     { icon: "📦", label: "My Orders", path: "/orders" },
     { icon: "↩️", label: "Returns", path: "/returns" },
-    { icon: "🔍", label: "Smart Search", path: "/semantic-search" },
-    { icon: "🍲", label: "Recipe Helper", path: "/recipe-helper" },
     ...(user?.role === "admin"
       ? [
           { icon: "⚙️", label: "Admin Panel", path: "/admin" },
+          // NOTE: /admin/issues removed — issue resolution dashboard not yet built.
+          // Add back here when that page is created.
           { icon: "🔐", label: "Fraud Monitor", path: "/fraud-detection" },
           { icon: "📈", label: "Forecasting", path: "/demand-forecasting" },
+          { icon: "👨‍🍳", label: "AI Chef", path: "/chef-chat" },
         ]
       : []),
   ];
@@ -121,6 +476,7 @@ export default function Navbar() {
       }}
     >
       <style>{NAVBAR_CSS}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       <div
         className="bf-navbar-inner"
@@ -132,7 +488,7 @@ export default function Navbar() {
           minWidth: 0,
         }}
       >
-        {/* ── LOGO ─────────────────────────────────────── */}
+        {/* LOGO */}
         <Link
           to={user ? "/home" : "/"}
           style={{
@@ -140,7 +496,6 @@ export default function Navbar() {
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
-            minWidth: 0,
           }}
         >
           <img
@@ -156,7 +511,7 @@ export default function Navbar() {
           />
         </Link>
 
-        {/* ── DESKTOP NAV LINKS (>=768px only) ──────────── */}
+        {/* DESKTOP NAV LINKS */}
         {user && (
           <div
             className="bf-navbar-links"
@@ -192,19 +547,22 @@ export default function Navbar() {
             ))}
           </div>
         )}
-        {!user && <div style={{ flex: 1, minWidth: "8px" }} />}
+        {!user && <div style={{ flex: 1 }} />}
 
-        {/* ── RIGHT SIDE ───────────────────────────────── */}
+        {/* RIGHT SIDE */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "4px",
+            gap: "6px",
             flexShrink: 0,
           }}
         >
           {user ? (
             <>
+              <NavSearchBar />
+
+              {/* Cart */}
               <button
                 onClick={() => navigate("/cart")}
                 style={{
@@ -241,7 +599,7 @@ export default function Navbar() {
                 )}
               </button>
 
-              {/* Avatar dropdown — visible at all sizes */}
+              {/* Avatar dropdown */}
               <div style={{ position: "relative" }} ref={dropdownRef}>
                 <button
                   onClick={() => setMenuOpen((o) => !o)}
@@ -305,7 +663,7 @@ export default function Navbar() {
                         border: "1px solid #E5E7EB",
                         borderRadius: "14px",
                         padding: "6px",
-                        width: "min(210px, 90vw)",
+                        width: "min(220px, 90vw)",
                         boxShadow: "0 16px 40px rgba(0,0,0,0.10)",
                         zIndex: 300,
                       }}
@@ -403,7 +761,7 @@ export default function Navbar() {
                 </AnimatePresence>
               </div>
 
-              {/* Hamburger — mobile/tablet only (<768px) */}
+              {/* Hamburger — mobile only */}
               <button
                 className="bf-navbar-burger"
                 onClick={() => setMobileNavOpen((o) => !o)}
@@ -462,7 +820,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* ── MOBILE NAV DRAWER (<768px, logged in only) ──── */}
+      {/* MOBILE DRAWER */}
       <AnimatePresence>
         {user && mobileNavOpen && (
           <motion.div
@@ -470,11 +828,11 @@ export default function Navbar() {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             style={{ overflow: "hidden", borderTop: "1px solid #F3F4F6" }}
-            className="bf-navbar-burger-panel"
           >
+            <MobileSearchBar onClose={() => setMobileNavOpen(false)} />
             <div
               style={{
-                padding: "10px 14px 16px",
+                padding: "4px 14px 16px",
                 display: "flex",
                 flexDirection: "column",
                 gap: "4px",

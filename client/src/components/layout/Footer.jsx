@@ -32,9 +32,8 @@ export default function Footer() {
       heading: "Shop",
       links: [
         { label: "All Products", path: "/products" },
-        { label: "Smart Search", path: "/semantic-search" },
-        { label: "AI Recommendations", path: "/recommendations" },
-        { label: "Recipe Helper", path: "/recipe-helper" },
+        { label: "Chef Bems AI", path: "/chef-chat" },
+        { label: "My Cart", path: "/cart" },
       ],
     },
     {

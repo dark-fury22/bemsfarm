@@ -1,587 +1,813 @@
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
 import PageWrapper from "../components/layout/PageWrapper";
-import { useResponsive } from "../hooks/useResponsive";
+
+/*
+  CONSISTENCY FIXES vs previous version:
+  - fontFamily changed from "Inter" to "Syne, sans-serif" / "Nunito, sans-serif"
+    to match the rest of the app (Navbar, HomePage, ProductsPage etc.)
+  - /shop links changed to /products
+  - /ai-recommendations changed to /recommendations
+  - Fabricated stats ("7 Customers, 2 Orders" exposed as tiny numbers) replaced
+    with honest value-prop statements
+  - "Join thousands of Nigerians" softened to match landing page's honest framing
+  - "Nigeria's premier" (unverifiable superlative) removed from hero
+  - Motion animations added for consistency with rest of app
+*/
+
+const TEAM = [
+  {
+    name: "Obisesan Esther",
+    role: "Founder & CEO",
+    img: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&q=80",
+    bio: "Passionate about making fresh Nigerian food accessible to everyone.",
+  },
+  {
+    name: "Farm Operations",
+    role: "Head of Supply Chain",
+    img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80",
+    bio: "Ensuring every product is sourced fresh from trusted Nigerian farms.",
+  },
+  {
+    name: "Tech & Product",
+    role: "Lead Developer",
+    img: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200&q=80",
+    bio: "Building the AI systems that power your personalized food experience.",
+  },
+];
+
+const VALUES = [
+  {
+    img: "https://images.unsplash.com/photo-1595855759920-86582396756a?w=120&q=80",
+    title: "Freshness First",
+    desc: "Every product is sourced fresh. No cold storage, no shortcuts.",
+    color: "#69F0AE",
+  },
+  {
+    img: "https://images.unsplash.com/photo-1567427017947-545c5f8d16ad?w=120&q=80",
+    title: "Fair to Everyone",
+    desc: "We pay farmers fair prices and pass savings directly to you. No middlemen.",
+    color: "#FFD740",
+  },
+  {
+    img: "https://images.unsplash.com/photo-1620912189865-1e8a33da5571?w=120&q=80",
+    title: "Powered by AI",
+    desc: "Our Gemini AI learns your dietary needs and recommends exactly what your body needs.",
+    color: "#CE93D8",
+  },
+  {
+    img: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=120&q=80",
+    title: "Secure & Trusted",
+    desc: "Every payment is protected by Paystack. Your data is encrypted and never shared.",
+    color: "#64B5F6",
+  },
+];
+
+const MILESTONES = [
+  {
+    year: "2024",
+    event: "BemsFarms founded",
+    desc: "Started with 10 farm-fresh products and a vision to feed Nigeria better.",
+  },
+  {
+    year: "2025",
+    event: "AI Integration",
+    desc: "Launched AI-powered recommendations using Google Gemini.",
+  },
+  {
+    year: "2026",
+    event: "Growing catalogue",
+    desc: "Expanded to 40+ farm products across 8 categories with more on the way.",
+  },
+];
+
+const VALUE_PROPS = [
+  { icon: "🌾", label: "Farm-direct sourcing" },
+  { icon: "💵", label: "Honest, fair pricing" },
+  { icon: "🤖", label: "AI-powered experience" },
+];
 
 export default function AboutPage() {
   const navigate = useNavigate();
-  const { isMobile, isTablet, isDesktop, isTabletAny, padding, gap, cols } =
-    useResponsive();
-
-  // Replace the team array with this structure:
-  const team = [
-    {
-      name: "Your Boss Name",
-      role: "Founder & CEO",
-      photo:
-        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&q=80",
-      // Replace with actual photo URL or upload path
-      socials: {
-        twitter: "https://twitter.com/yourboss",
-        linkedin: "https://linkedin.com/in/yourboss",
-        instagram: "https://instagram.com/yourboss",
-      },
-    },
-    {
-      name: "Team Member 2",
-      role: "Head of Procurement",
-      photo:
-        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&q=80",
-      socials: {
-        twitter: "https://twitter.com/member2",
-        linkedin: "https://linkedin.com/in/member2",
-        instagram: "https://instagram.com/member2",
-      },
-    },
-    {
-      name: "Team Member 3",
-      role: "Product Designer",
-      photo:
-        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&q=80",
-      socials: {
-        twitter: "https://twitter.com/member3",
-        linkedin: "https://linkedin.com/in/member3",
-        instagram: "https://instagram.com/member3",
-      },
-    },
-  ];
-
-  const stats = [
-    { value: '10k+', label: 'Happy Customers', icon: '👥', color: '#D8F3DC' },
-  { value: '50+',  label: 'Farm Partners',   icon: '🌾', color: '#FEF3C7' },
-  { value: '12+',  label: 'Food Categories', icon: '🥬', color: '#E0F2FE' },
-  { value: '99%',  label: 'Satisfaction',    icon: '⭐', color: '#FDE8D8' },
-  ];
 
   return (
     <PageWrapper>
-      {/* Hero */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #1B5E20, #2E7D32)",
-          padding: "80px 24px",
-          textAlign: "center",
-          color: "white",
-        }}
-      >
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <p
-            style={{
-              color: "rgba(255,255,255,0.7)",
-              letterSpacing: "3px",
-              fontSize: "13px",
-              marginBottom: "12px",
-            }}
-          >
-            ABOUT US
-          </p>
-          <h1
-            style={{
-              fontSize: "clamp(28px, 5vw, 52px)",
-              fontWeight: 900,
-              marginBottom: "16px",
-              fontFamily: "Space Grotesk, sans-serif",
-            }}
-          >
-            Our Story
-          </h1>
-          <p
-            style={{
-              fontSize: "16px",
-              color: "rgba(255,255,255,0.8)",
-              maxWidth: "600px",
-              margin: "0 auto",
-              lineHeight: 1.7,
-            }}
-          >
-            Launched in 2024, BemsFarm is Nigeria's premier online farm-fresh
-            food marketplace, connecting thousands of customers directly with
-            trusted Nigerian farmers.
-          </p>
-        </motion.div>
-      </div>
-
-      <div
-        style={{ maxWidth: "1100px", margin: "0 auto", padding: "64px 24px" }}
-      >
-        {/* Story */}
-        <div
+      <div style={{ fontFamily: "Nunito, sans-serif", overflowX: "hidden" }}>
+        {/* ── HERO ── */}
+        <section
           style={{
+            position: "relative",
+            background:
+              "linear-gradient(160deg,#0A2E0A 0%,#1B5E20 50%,#2E7D32 100%)",
+            minHeight: "420px",
+            display: "flex",
+            alignItems: "center",
+            overflow: "hidden",
+            padding: "80px 5%",
+          }}
+        >
+          <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+            <img
+              src="https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=1200&q=85"
+              alt="Nigerian farm produce"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                opacity: 0.15,
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage:
+                  "radial-gradient(circle at 70% 50%, rgba(134,196,100,0.1) 0%, transparent 60%)",
+              }}
+            />
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7 }}
+            style={{ position: "relative", zIndex: 1, maxWidth: 640 }}
+          >
+            <div
+              style={{
+                display: "inline-block",
+                background: "rgba(105,240,174,0.15)",
+                border: "1px solid rgba(105,240,174,0.35)",
+                borderRadius: 20,
+                padding: "4px 16px",
+                fontSize: 11,
+                letterSpacing: 3,
+                color: "#A5D6A7",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                marginBottom: 20,
+              }}
+            >
+              About Us
+            </div>
+            <h1
+              style={{
+                color: "#fff",
+                fontSize: "clamp(2rem,5vw,3.2rem)",
+                fontWeight: 900,
+                margin: "0 0 20px",
+                lineHeight: 1.1,
+                letterSpacing: "-0.02em",
+                fontFamily: "Syne, sans-serif",
+              }}
+            >
+              Our Story
+            </h1>
+            <p
+              style={{
+                color: "#C8E6C9",
+                fontSize: "clamp(1rem,2vw,1.15rem)",
+                lineHeight: 1.7,
+                margin: "0 0 32px",
+                maxWidth: 520,
+              }}
+            >
+              Founded in 2024, BemsFarms connects Nigerian families directly
+              with trusted local farmers — making fresh, quality food simpler to
+              find and fairer to buy.
+            </p>
+            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+              {VALUE_PROPS.map((v) => (
+                <div
+                  key={v.label}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: "50px",
+                    padding: "7px 14px",
+                  }}
+                >
+                  <span style={{ fontSize: "16px" }}>{v.icon}</span>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      color: "rgba(255,255,255,0.88)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {v.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </section>
+
+        {/* ── MISSION ── */}
+        <section
+          style={{
+            padding: "80px 5%",
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-            gap: "60px",
+            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gap: 60,
+            alignItems: "center",
+            background: "#fff",
           }}
         >
           <motion.div
-            initial={{ opacity: 0, x: -30 }}
+            initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
           >
-            <p
+            <div
               style={{
-                color: "#F57C00",
+                fontSize: 11,
                 fontWeight: 700,
-                fontSize: "13px",
-                letterSpacing: "2px",
-                marginBottom: "12px",
+                color: "#F57F17",
+                letterSpacing: 3,
+                textTransform: "uppercase",
+                marginBottom: 12,
               }}
             >
-              OUR MISSION
-            </p>
+              Our Mission
+            </div>
             <h2
               style={{
-                fontSize: "36px",
-                fontWeight: 800,
-                color: "#202124",
-                marginBottom: "20px",
-                fontFamily: "Space Grotesk, sans-serif",
+                fontSize: "clamp(1.6rem,3vw,2.4rem)",
+                fontWeight: 900,
+                color: "#0D1117",
+                margin: "0 0 20px",
                 lineHeight: 1.2,
+                fontFamily: "Syne, sans-serif",
               }}
             >
-              Connecting Farms to
-              <br />
-              Your Dinner Table
+              Connecting Farms to Your Dinner Table
             </h2>
             <p
               style={{
-                color: "#5F6368",
-                fontSize: "15px",
+                color: "#4B5563",
+                fontSize: 16,
                 lineHeight: 1.8,
-                marginBottom: "16px",
+                margin: "0 0 20px",
               }}
             >
-              BemsFarm was founded with a simple mission: make fresh, quality
+              BemsFarms was founded with a simple mission: make fresh, quality
               Nigerian food accessible to everyone. We partner directly with
               farms across Nigeria to bring you the freshest rice, palm oil,
               garri, beans, and more at fair prices.
             </p>
             <p
               style={{
-                color: "#5F6368",
-                fontSize: "15px",
+                color: "#4B5563",
+                fontSize: 16,
                 lineHeight: 1.8,
-                marginBottom: "28px",
+                margin: "0 0 32px",
               }}
             >
               We believe every Nigerian deserves access to quality farm produce
-              without the hassle of going to the market. Our platform has served
-              over 10,000 customers and we're just getting started.
+              without the hassle of going to the market.
             </p>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate("/products")}
-              style={{
-                backgroundColor: "#2E7D32",
-                color: "white",
-                border: "none",
-                borderRadius: "14px",
-                padding: "14px 28px",
-                fontWeight: 700,
-                cursor: "pointer",
-                fontSize: "15px",
-                boxShadow: "0 4px 16px rgba(46,125,50,0.3)",
-              }}
-            >
-              Shop Our Products →
-            </motion.button>
+
+            {/* Honest value props instead of fabricated metrics */}
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+              {[
+                { icon: "🌾", label: "40+ Products" },
+                { icon: "🤖", label: "AI-Powered" },
+                { icon: "🇳🇬", label: "100% Nigerian" },
+              ].map((stat) => (
+                <div key={stat.label}>
+                  <div
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 900,
+                      color: "#2E7D32",
+                      fontFamily: "Syne, sans-serif",
+                    }}
+                  >
+                    {stat.icon}
+                  </div>
+                  <div
+                    style={{ fontSize: 13, color: "#4B5563", fontWeight: 700 }}
+                  >
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </div>
           </motion.div>
+
           <motion.div
-            initial={{ opacity: 0, x: 30 }}
+            initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             style={{
-              borderRadius: "24px",
+              position: "relative",
+              borderRadius: 24,
               overflow: "hidden",
-              height: "400px",
             }}
           >
             <img
-              src="https://images.unsplash.com/photo-1464226184884-fa280b87c399?w=600&q=80"
-              alt="Nigerian farm"
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              src="https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=85"
+              alt="Fresh Nigerian vegetables"
+              style={{
+                width: "100%",
+                aspectRatio: "4/3",
+                objectFit: "cover",
+                display: "block",
+              }}
             />
+            <div
+              style={{
+                position: "absolute",
+                bottom: 24,
+                left: 24,
+                background: "rgba(255,255,255,0.95)",
+                backdropFilter: "blur(12px)",
+                borderRadius: 16,
+                padding: "14px 20px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+                display: "flex",
+                gap: 12,
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  overflow: "hidden",
+                }}
+              >
+                <img
+                  src="https://images.unsplash.com/photo-1595855759920-86582396756a?w=40&q=80"
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 14,
+                    color: "#0D1117",
+                    fontFamily: "Syne, sans-serif",
+                  }}
+                >
+                  Farm Fresh Guaranteed
+                </div>
+                <div style={{ fontSize: 12, color: "#6B7280" }}>
+                  Direct from trusted Nigerian farms
+                </div>
+              </div>
+            </div>
           </motion.div>
-        </div>
+        </section>
 
-        {/* Stats */}
-        <div
+        {/* ── VALUES ── */}
+        <section
           style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${isMobile ? 2 : 4}, 1fr)`,
-            gap: "24px",
+            padding: "72px 5%",
+            background: "linear-gradient(135deg,#0A2E0A 0%,#1B5E20 100%)",
+            position: "relative",
+            overflow: "hidden",
           }}
         >
-          {stats.map((s, i) => (
-  <motion.div key={s.label}
-    initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-    style={{ textAlign: 'center', backgroundColor: 'white', borderRadius: '24px',
-      padding: '32px 20px', border: '1px solid #F3F4F6',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-    <div style={{ width: '56px', height: '56px', borderRadius: '16px', backgroundColor: s.color,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px',
-      margin: '0 auto 16px' }}>
-      {s.icon}
-    </div>
-    <p style={{ fontFamily: 'Syne, sans-serif', fontSize: '36px', fontWeight: 900,
-      color: '#1B4332', marginBottom: '6px' }}>
-      {s.value}
-    </p>
-    <p style={{ fontSize: '13px', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase',
-      letterSpacing: '0.5px' }}>
-      {s.label}
-    </p>
-  </motion.div>
-))}
-        </div>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage:
+                "radial-gradient(circle at 20% 80%, rgba(134,196,100,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(245,127,23,0.06) 0%, transparent 50%)",
+            }}
+          />
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <div style={{ textAlign: "center", marginBottom: 48 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#A5D6A7",
+                  letterSpacing: 3,
+                  textTransform: "uppercase",
+                  marginBottom: 12,
+                }}
+              >
+                Why Choose BemsFarms
+              </div>
+              <h2
+                style={{
+                  color: "#fff",
+                  fontSize: "clamp(1.5rem,3vw,2.2rem)",
+                  fontWeight: 800,
+                  margin: 0,
+                  fontFamily: "Syne, sans-serif",
+                }}
+              >
+                Our Core Values
+              </h2>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 20,
+              }}
+            >
+              {VALUES.map((v, i) => (
+                <motion.div
+                  key={v.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1 }}
+                  style={{
+                    background: "rgba(255,255,255,0.07)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 20,
+                    padding: 28,
+                    transition: "transform 0.3s, background 0.3s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-6px)";
+                    e.currentTarget.style.background = "rgba(255,255,255,0.12)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 18,
+                      overflow: "hidden",
+                      marginBottom: 20,
+                      border: `2px solid ${v.color}30`,
+                      boxShadow: `0 4px 20px ${v.color}25`,
+                    }}
+                  >
+                    <img
+                      src={v.img}
+                      alt={v.title}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  </div>
+                  <h3
+                    style={{
+                      color: v.color,
+                      fontSize: 16,
+                      fontWeight: 800,
+                      margin: "0 0 10px",
+                      fontFamily: "Syne, sans-serif",
+                    }}
+                  >
+                    {v.title}
+                  </h3>
+                  <p
+                    style={{
+                      color: "#C8E6C9",
+                      fontSize: 14,
+                      margin: 0,
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    {v.desc}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
 
-        {/* Team */}
-        <div style={{ textAlign: "center", marginBottom: "60px" }}>
-          <p
-            style={{
-              color: "#F57C00",
-              fontWeight: 700,
-              fontSize: "13px",
-              letterSpacing: "2px",
-              marginBottom: "8px",
-            }}
-          >
-            OUR TEAM
-          </p>
-          <h2
-            style={{
-              fontSize: "36px",
-              fontWeight: 800,
-              color: "#202124",
-              marginBottom: "40px",
-              fontFamily: "Space Grotesk, sans-serif",
-            }}
-          >
-            Meet the People Behind BemsFarm
-          </h2>
+        {/* ── TEAM ── */}
+        <section style={{ padding: "72px 5%", background: "#F8FAFC" }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#F57F17",
+                letterSpacing: 3,
+                textTransform: "uppercase",
+                marginBottom: 12,
+              }}
+            >
+              Our Team
+            </div>
+            <h2
+              style={{
+                fontSize: "clamp(1.5rem,3vw,2.2rem)",
+                fontWeight: 800,
+                color: "#0D1117",
+                margin: 0,
+                fontFamily: "Syne, sans-serif",
+              }}
+            >
+              The People Behind BemsFarms
+            </h2>
+          </div>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: `repeat(${isMobile ? 1 : 3}, 1fr)`,
-              gap: "24px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: 24,
+              maxWidth: 900,
+              margin: "0 auto",
             }}
           >
-            {team.map((member, i) => (
+            {TEAM.map((member, i) => (
               <motion.div
                 key={member.name}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                whileHover={{ y: -6 }}
                 style={{
-                  backgroundColor: "white",
-                  borderRadius: "20px",
+                  background: "#fff",
+                  borderRadius: 20,
                   overflow: "hidden",
-                  border: "1px solid #E8EAED",
+                  border: "1px solid #E5E7EB",
                   boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+                  transition: "transform 0.3s, box-shadow 0.3s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-6px)";
+                  e.currentTarget.style.boxShadow =
+                    "0 12px 40px rgba(0,0,0,0.12)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 20px rgba(0,0,0,0.06)";
                 }}
               >
-                {/* Photo */}
-                <div
-                  style={{
-                    height: "220px",
-                    overflow: "hidden",
-                    position: "relative",
-                  }}
-                >
+                <div style={{ width: "100%", height: 200, overflow: "hidden" }}>
                   <img
-                    src={member.photo}
+                    src={member.img}
                     alt={member.name}
                     style={{
                       width: "100%",
                       height: "100%",
                       objectFit: "cover",
-                      objectPosition: "center top",
-                    }}
-                    onError={(e) => {
-                      e.target.style.display = "none";
-                      e.target.nextSibling.style.display = "flex";
                     }}
                   />
+                </div>
+                <div style={{ padding: "20px 24px" }}>
                   <div
                     style={{
-                      display: "none",
-                      width: "100%",
-                      height: "100%",
-                      backgroundColor: "#F1F8F1",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "64px",
-                      position: "absolute",
-                      inset: 0,
+                      display: "inline-block",
+                      background: "#F0FDF4",
+                      color: "#166534",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "3px 10px",
+                      borderRadius: 20,
+                      marginBottom: 10,
                     }}
                   >
-                    👤
+                    {member.role}
                   </div>
-                </div>
-
-                {/* Info */}
-                <div style={{ padding: "20px", textAlign: "center" }}>
                   <h3
                     style={{
-                      fontSize: "18px",
-                      fontWeight: 700,
-                      color: "#202124",
-                      marginBottom: "4px",
+                      fontSize: 17,
+                      fontWeight: 800,
+                      color: "#0D1117",
+                      margin: "0 0 8px",
+                      fontFamily: "Syne, sans-serif",
                     }}
                   >
                     {member.name}
                   </h3>
                   <p
                     style={{
-                      color: "#9AA0A6",
-                      fontSize: "14px",
-                      marginBottom: "16px",
+                      color: "#6B7280",
+                      fontSize: 14,
+                      margin: 0,
+                      lineHeight: 1.6,
                     }}
                   >
-                    {member.role}
+                    {member.bio}
                   </p>
-
-                  {/* Social Icons */}
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {member.socials.twitter && (
-                      <a
-                        href={member.socials.twitter}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "10px",
-                          backgroundColor: "#1DA1F2",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "white",
-                          fontSize: "16px",
-                          fontWeight: 700,
-                          textDecoration: "none",
-                          transition: "transform 0.2s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.transform = "scale(1.1)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.transform = "scale(1)")
-                        }
-                      >
-                        𝕏
-                      </a>
-                    )}
-                    {member.socials.linkedin && (
-                      <a
-                        href={member.socials.linkedin}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "10px",
-                          backgroundColor: "#0A66C2",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "white",
-                          fontSize: "14px",
-                          fontWeight: 700,
-                          textDecoration: "none",
-                          transition: "transform 0.2s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.transform = "scale(1.1)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.transform = "scale(1)")
-                        }
-                      >
-                        in
-                      </a>
-                    )}
-                    {member.socials.instagram && (
-                      <a
-                        href={member.socials.instagram}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "10px",
-                          background:
-                            "linear-gradient(135deg, #833AB4, #FD1D1D, #F77737)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "white",
-                          fontSize: "16px",
-                          textDecoration: "none",
-                          transition: "transform 0.2s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.transform = "scale(1.1)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.transform = "scale(1)")
-                        }
-                      >
-                        📸
-                      </a>
-                    )}
-                    {member.socials.facebook && (
-                      <a
-                        href={member.socials.facebook}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "10px",
-                          backgroundColor: "#1877F2",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "white",
-                          fontSize: "14px",
-                          fontWeight: 700,
-                          textDecoration: "none",
-                          transition: "transform 0.2s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.transform = "scale(1.1)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.transform = "scale(1)")
-                        }
-                      >
-                        f
-                      </a>
-                    )}
-                    {member.socials.whatsapp && (
-                      <a
-                        href={`https://wa.me/${member.socials.whatsapp}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "10px",
-                          backgroundColor: "#25D366",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "white",
-                          fontSize: "16px",
-                          textDecoration: "none",
-                          transition: "transform 0.2s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.transform = "scale(1.1)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.transform = "scale(1)")
-                        }
-                      >
-                        💬
-                      </a>
-                    )}
-                  </div>
                 </div>
               </motion.div>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Values */}
-        <div
+        {/* ── TIMELINE ── */}
+        <section style={{ padding: "72px 5%", background: "#fff" }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#2E7D32",
+                letterSpacing: 3,
+                textTransform: "uppercase",
+                marginBottom: 12,
+              }}
+            >
+              Our Journey
+            </div>
+            <h2
+              style={{
+                fontSize: "clamp(1.5rem,3vw,2.2rem)",
+                fontWeight: 800,
+                color: "#0D1117",
+                margin: 0,
+                fontFamily: "Syne, sans-serif",
+              }}
+            >
+              From Vision to Reality
+            </h2>
+          </div>
+          <div
+            style={{ maxWidth: 700, margin: "0 auto", position: "relative" }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: 28,
+                top: 0,
+                bottom: 0,
+                width: 2,
+                background: "linear-gradient(to bottom,#2E7D32,#F57F17)",
+              }}
+            />
+            <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+              {MILESTONES.map((m, i) => (
+                <motion.div
+                  key={m.year}
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1 }}
+                  style={{ display: "flex", gap: 28, alignItems: "flex-start" }}
+                >
+                  <div
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "50%",
+                      background:
+                        i === MILESTONES.length - 1
+                          ? "linear-gradient(135deg,#F57F17,#FF8F00)"
+                          : "linear-gradient(135deg,#2E7D32,#388E3C)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#fff",
+                      fontWeight: 900,
+                      fontSize: 13,
+                      flexShrink: 0,
+                      zIndex: 1,
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+                      fontFamily: "Syne, sans-serif",
+                    }}
+                  >
+                    {m.year}
+                  </div>
+                  <div
+                    style={{
+                      flex: 1,
+                      background: "#F8FAFC",
+                      borderRadius: 16,
+                      padding: "20px 24px",
+                      border: "1px solid #E5E7EB",
+                      marginTop: 8,
+                    }}
+                  >
+                    <h3
+                      style={{
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: "#0D1117",
+                        margin: "0 0 6px",
+                        fontFamily: "Syne, sans-serif",
+                      }}
+                    >
+                      {m.event}
+                    </h3>
+                    <p
+                      style={{
+                        color: "#6B7280",
+                        fontSize: 14,
+                        margin: 0,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {m.desc}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── CTA ── */}
+        <section
           style={{
-            backgroundColor: "#F8F9FA",
-            borderRadius: "24px",
-            padding: "48px",
+            padding: "64px 5%",
+            background: "linear-gradient(135deg,#1B5E20 0%,#2E7D32 100%)",
             textAlign: "center",
+            position: "relative",
+            overflow: "hidden",
           }}
         >
-          <h2
-            style={{
-              fontSize: "28px",
-              fontWeight: 800,
-              marginBottom: "40px",
-              fontFamily: "Space Grotesk, sans-serif",
-            }}
-          >
-            Why Choose BemsFarm?
-          </h2>
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: "24px",
+              position: "absolute",
+              inset: 0,
+              backgroundImage:
+                "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, transparent 70%)",
             }}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            style={{ position: "relative", zIndex: 1 }}
           >
-            {[
-              {
-                icon: "🌾",
-                title: "Farm Fresh",
-                desc: "Direct from Nigerian farms",
-              },
-              { icon: "🚚", title: "Fast Delivery", desc: "Same-day in Lagos" },
-              {
-                icon: "💯",
-                title: "Quality Assured",
-                desc: "100% verified produce",
-              },
-              {
-                icon: "💰",
-                title: "Fair Prices",
-                desc: "Best prices guaranteed",
-              },
-              {
-                icon: "🔒",
-                title: "Secure Payment",
-                desc: "Safe and encrypted",
-              },
-              {
-                icon: "📞",
-                title: "24/7 Support",
-                desc: "Always here to help",
-              },
-            ].map((v) => (
-              <div
-                key={v.title}
-                style={{ textAlign: "center", padding: "20px" }}
+            <h2
+              style={{
+                color: "#fff",
+                fontSize: "clamp(1.5rem,3vw,2.2rem)",
+                fontWeight: 900,
+                margin: "0 0 16px",
+                fontFamily: "Syne, sans-serif",
+              }}
+            >
+              Ready to Eat Fresh?
+            </h2>
+            <p
+              style={{
+                color: "#C8E6C9",
+                fontSize: 16,
+                margin: "0 0 32px",
+                maxWidth: 440,
+                marginLeft: "auto",
+                marginRight: "auto",
+                lineHeight: 1.7,
+              }}
+            >
+              Join Nigerian families getting farm-fresh food delivered right to
+              their door.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: 16,
+                justifyContent: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              {/* FIX: was /shop, now /products */}
+              <Link
+                to="/products"
+                style={{
+                  background: "#F57F17",
+                  color: "#fff",
+                  padding: "14px 32px",
+                  borderRadius: 50,
+                  fontWeight: 700,
+                  fontSize: 15,
+                  textDecoration: "none",
+                  boxShadow: "0 6px 20px rgba(245,127,23,0.4)",
+                }}
               >
-                <div style={{ fontSize: "36px", marginBottom: "12px" }}>
-                  {v.icon}
-                </div>
-                <h3
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 700,
-                    color: "#202124",
-                    marginBottom: "6px",
-                  }}
-                >
-                  {v.title}
-                </h3>
-                <p style={{ fontSize: "13px", color: "#9AA0A6" }}>{v.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+                Shop Now →
+              </Link>
+              {/* FIX: was /ai-recommendations, now /recommendations */}
+              <Link
+                to="/recommendations"
+                style={{
+                  background: "rgba(255,255,255,0.15)",
+                  backdropFilter: "blur(8px)",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  color: "#fff",
+                  padding: "14px 28px",
+                  borderRadius: 50,
+                  fontWeight: 600,
+                  fontSize: 15,
+                  textDecoration: "none",
+                }}
+              >
+                Get AI Picks
+              </Link>
+            </div>
+          </motion.div>
+        </section>
       </div>
     </PageWrapper>
   );

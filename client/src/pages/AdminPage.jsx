@@ -230,6 +230,32 @@ export default function AdminPage() {
       setSaving(false);
     }
   };
+
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    try {
+      await api.patch(`/admin/orders/${orderId}/status`, {
+        status: newStatus,
+        tracking_status: newStatus,
+      });
+      // Update both recentOrders and viewOrder state immediately so
+      // the UI reflects the change without needing a manual refresh.
+      setRecentOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, status: newStatus, tracking_status: newStatus }
+            : o,
+        ),
+      );
+      setViewOrder((prev) =>
+        prev && prev.id === orderId ? { ...prev, status: newStatus } : prev,
+      );
+      console.log("✅ Order status updated:", orderId, "->", newStatus);
+    } catch (err) {
+      console.error("❌ Status update failed:", err);
+      alert("Failed to update status. Please try again.");
+    }
+  };
+
   const handleEditImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1393,6 +1419,13 @@ export default function AdminPage() {
                                     View
                                   </motion.button>
                                   <select
+                                    value={order.status}
+                                    onChange={(e) =>
+                                      handleUpdateOrderStatus(
+                                        order.id,
+                                        e.target.value,
+                                      )
+                                    }
                                     style={{
                                       padding: "6px 10px",
                                       borderRadius: "8px",
@@ -1403,10 +1436,16 @@ export default function AdminPage() {
                                       color: "#5F6368",
                                     }}
                                   >
-                                    <option>Update</option>
-                                    <option>Confirm</option>
-                                    <option>Deliver</option>
-                                    <option>Cancel</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="confirmed">Confirmed</option>
+                                    <option value="being_packed">
+                                      Being Packed
+                                    </option>
+                                    <option value="out_for_delivery">
+                                      Out for Delivery
+                                    </option>
+                                    <option value="delivered">Delivered</option>
+                                    <option value="cancelled">Cancelled</option>
                                   </select>
                                 </div>
                               </td>
@@ -2698,6 +2737,10 @@ export default function AdminPage() {
                   Update Status
                 </label>
                 <select
+                  value={viewOrder.status}
+                  onChange={(e) =>
+                    handleUpdateOrderStatus(viewOrder.id, e.target.value)
+                  }
                   style={{
                     width: "100%",
                     padding: "10px 14px",
@@ -2705,12 +2748,15 @@ export default function AdminPage() {
                     borderRadius: "10px",
                     fontSize: "14px",
                     outline: "none",
+                    cursor: "pointer",
                   }}
                 >
-                  <option>pending</option>
-                  <option>confirmed</option>
-                  <option>delivered</option>
-                  <option>cancelled</option>
+                  <option value="pending">Pending</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="being_packed">Being Packed</option>
+                  <option value="out_for_delivery">Out for Delivery</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="cancelled">Cancelled</option>
                 </select>
               </div>
             </div>

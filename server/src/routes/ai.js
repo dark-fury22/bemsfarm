@@ -2,6 +2,52 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db/pool");
 
+// ═══════════════════════════════════════════════════════════════
+// GEMINI CONFIG — shared by /recipe-helper and /chat routes below.
+// Moved here (top of file) so both routes can use it; previously
+// these constants were defined only above the /chat route, which
+// meant /recipe-helper couldn't reach them at all.
+// ═══════════════════════════════════════════════════════════════
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+// Low-level Gemini caller shared by both features below. Each
+// feature builds its own prompt and parses the response differently,
+// so this just handles the HTTP request/response plumbing.
+async function callGeminiRaw(
+  promptText,
+  { systemInstruction, maxOutputTokens = 300, temperature = 0.4 } = {},
+) {
+  if (!GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY not configured");
+  }
+
+  const body = {
+    contents: [{ role: "user", parts: [{ text: promptText }] }],
+    generationConfig: { maxOutputTokens, temperature },
+  };
+  if (systemInstruction) {
+    body.system_instruction = { parts: [{ text: systemInstruction }] };
+  }
+
+  const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errBody}`);
+  }
+
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Gemini returned no text");
+  return text.trim();
+}
+
 // ── SMARTER DIETARY RULES (Differentiated by need) ─────────
 const DIETARY_RULES = {
   diabetes: {
@@ -271,6 +317,104 @@ router.post("/co-purchase", async (req, res) => {
 });
 
 // ── PHASE 2: SMART SHOPPING ASSISTANT ────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// RECIPE HELPER — now a real hybrid system, like Smart Search
+//
+// BEFORE: a hardcoded object with exactly 5 recipes. Typing anything
+// else (e.g. "egusi soup") silently fell back to Jollof Rice
+// ingredients with NO indication this had happened — actively
+// misleading, since the user would think they got egusi soup
+// ingredients.
+//
+// AFTER: the 5 curated recipes still answer instantly (exact, free,
+// reliable). Anything else goes to Gemini, which is given BOTH the
+// dish name AND the real product catalog, and asked to suggest a
+// genuine ingredient list + instructions. Each suggested ingredient
+// is then matched against the real catalog (same substring-match
+// approach used for the curated recipes) so "Add to Cart" only ever
+// appears for ingredients that actually exist in the store.
+// ═══════════════════════════════════════════════════════════════
+
+const CURATED_RECIPES = {
+  "jollof rice": {
+    ingredients: ["rice", "tomatoes", "onion", "pepper", "groundnut oil"],
+    instructions: "Fry onions, add tomatoes, then rice. Cook until fluffy.",
+    servings: 4,
+  },
+  "beans and rice": {
+    ingredients: ["beans", "rice", "tomatoes", "onion", "palm oil", "crayfish"],
+    instructions:
+      "Cook beans with onions and palm oil. Cook rice separately. Mix and serve.",
+    servings: 4,
+  },
+  "pepper soup": {
+    ingredients: ["pepper", "tomatoes", "groundnut oil", "onion", "crayfish"],
+    instructions:
+      "Blend pepper and tomatoes. Fry in oil with crayfish. Add water and simmer.",
+    servings: 2,
+  },
+  "ugu soup": {
+    ingredients: ["ugu", "crayfish", "beans", "tomatoes", "palm oil", "onion"],
+    instructions:
+      "Fry onions in palm oil, add tomatoes, then ugu and crayfish. Simmer 15 mins.",
+    servings: 4,
+  },
+  "garri and soup": {
+    ingredients: [
+      "garri",
+      "vegetable soup",
+      "crayfish",
+      "palm oil",
+      "tomatoes",
+    ],
+    instructions:
+      "Make vegetable soup with tomatoes, palm oil, and crayfish. Serve with garri.",
+    servings: 3,
+  },
+};
+
+async function getAiRecipe(dishName, allProducts) {
+  const catalogNames = allProducts.map((p) => p.name);
+
+  const prompt = `A customer wants to cook: "${dishName}"
+
+Here is the product catalog available in our store (use these names when an ingredient matches something in this list):
+${catalogNames.map((n) => `- ${n}`).join("\n")}
+
+Provide a realistic ingredient list and brief cooking instructions for this dish. Respond with ONLY valid JSON in this exact shape, no markdown, no explanation:
+{"servings": <number>, "instructions": "<2-3 sentence summary>", "ingredients": ["<ingredient name>", "<ingredient name>", ...]}
+
+Use plain, common ingredient names (e.g. "tomatoes" not "2 medium tomatoes, diced"). If this is not a real, cookable dish, respond with: {"servings": 0, "instructions": "", "ingredients": []}`;
+
+  const text = await callGeminiRaw(prompt, {
+    maxOutputTokens: 400,
+    temperature: 0.4,
+  });
+  const cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error(
+      "Gemini response was not valid JSON: " + cleaned.slice(0, 200),
+    );
+  }
+
+  if (
+    !parsed.ingredients ||
+    !Array.isArray(parsed.ingredients) ||
+    parsed.ingredients.length === 0
+  ) {
+    throw new Error("Gemini could not generate a recipe for this dish");
+  }
+
+  return parsed;
+}
+
 router.post("/recipe-helper", async (req, res) => {
   try {
     const { recipe_name } = req.body;
@@ -279,76 +423,48 @@ router.post("/recipe-helper", async (req, res) => {
       return res.status(400).json({ message: "recipe_name required" });
     }
 
-    const recipes = {
-      "jollof rice": {
-        ingredients: ["rice", "tomatoes", "onion", "pepper", "groundnut oil"],
-        instructions: "Fry onions, add tomatoes, then rice. Cook until fluffy.",
-        servings: 4,
-      },
-      "beans and rice": {
-        ingredients: [
-          "beans",
-          "rice",
-          "tomatoes",
-          "onion",
-          "palm oil",
-          "crayfish",
-        ],
-        instructions:
-          "Cook beans with onions and palm oil. Cook rice separately. Mix and serve.",
-        servings: 4,
-      },
-      "pepper soup": {
-        ingredients: [
-          "pepper",
-          "tomatoes",
-          "groundnut oil",
-          "onion",
-          "crayfish",
-        ],
-        instructions:
-          "Blend pepper and tomatoes. Fry in oil with crayfish. Add water and simmer.",
-        servings: 2,
-      },
-      "ugu soup": {
-        ingredients: [
-          "ugu",
-          "crayfish",
-          "beans",
-          "tomatoes",
-          "palm oil",
-          "onion",
-        ],
-        instructions:
-          "Fry onions in palm oil, add tomatoes, then ugu and crayfish. Simmer 15 mins.",
-        servings: 4,
-      },
-      "garri and soup": {
-        ingredients: [
-          "garri",
-          "vegetable soup",
-          "crayfish",
-          "palm oil",
-          "tomatoes",
-        ],
-        instructions:
-          "Make vegetable soup with tomatoes, palm oil, and crayfish. Serve with garri.",
-        servings: 3,
-      },
-    };
-
-    const recipe = recipes[recipe_name.toLowerCase()] || recipes["jollof rice"];
-
     const productsResult = await pool.query(
       `SELECT id, name, price, unit, stock FROM products
        WHERE COALESCE(stock, 100) > 0
-       ORDER BY name ASC LIMIT 50`,
+       ORDER BY name ASC LIMIT 100`,
     );
     const allProducts = productsResult.rows;
 
-    const ingredients = recipe.ingredients.map((ingredient) => {
-      const product = allProducts.find((p) =>
-        p.name.toLowerCase().includes(ingredient.toLowerCase()),
+    const lookupKey = recipe_name.toLowerCase().trim();
+    let recipeData;
+    let source;
+
+    // ── TIER 1: curated exact match (instant, free) ──────────────
+    if (CURATED_RECIPES[lookupKey]) {
+      recipeData = CURATED_RECIPES[lookupKey];
+      source = "curated";
+    } else {
+      // ── TIER 2: Gemini fallback for any other dish ─────────────
+      try {
+        console.log(`🤖 "${recipe_name}" not in curated list — asking Gemini`);
+        const aiRecipe = await getAiRecipe(recipe_name, allProducts);
+        if (!aiRecipe.ingredients.length) {
+          return res.status(404).json({
+            message: `"${recipe_name}" doesn't look like a dish we can find ingredients for. Try a different name?`,
+          });
+        }
+        recipeData = aiRecipe;
+        source = "ai-generated";
+      } catch (aiErr) {
+        console.warn("⚠️ Gemini recipe generation failed:", aiErr.message);
+        return res.status(503).json({
+          message: `We don't have a recipe for "${recipe_name}" yet, and our AI helper is temporarily unavailable. Try one of our featured recipes instead, or try again shortly.`,
+        });
+      }
+    }
+
+    // Match every ingredient (curated or AI-sourced) against the
+    // real catalog — this is what makes "Add to Cart" trustworthy.
+    const ingredients = recipeData.ingredients.map((ingredient) => {
+      const product = allProducts.find(
+        (p) =>
+          p.name.toLowerCase().includes(ingredient.toLowerCase()) ||
+          ingredient.toLowerCase().includes(p.name.toLowerCase()),
       );
       return {
         ingredient_name: ingredient,
@@ -359,14 +475,18 @@ router.post("/recipe-helper", async (req, res) => {
       };
     });
 
-    console.log("✅ Recipe helper found", ingredients.length, "ingredients");
+    console.log(
+      `✅ Recipe helper (${source}) found`,
+      ingredients.length,
+      "ingredients",
+    );
 
     res.json({
       recipe_name,
-      servings: recipe.servings,
-      instructions: recipe.instructions,
+      servings: recipeData.servings,
+      instructions: recipeData.instructions,
       ingredients,
-      source: "recipe-helper",
+      source,
     });
   } catch (err) {
     console.error("❌ Recipe error:", err.message);
@@ -392,10 +512,6 @@ router.post("/recipe-helper", async (req, res) => {
 // API key is missing — chat never breaks even if Gemini is down.
 // ═══════════════════════════════════════════════════════════════
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-
 const BEMSFARMS_SYSTEM_PROMPT = `You are the BemsFarms shopping assistant — a friendly, concise AI for a Nigerian farm-fresh grocery e-commerce platform.
 
 Facts about BemsFarms:
@@ -408,43 +524,11 @@ Facts about BemsFarms:
 Tone: warm, brief, helpful — like a knowledgeable friend, not a corporate bot. Use at most 1-2 short sentences plus one relevant emoji. If asked something you genuinely don't know (e.g. a specific policy not listed here), say so honestly and suggest contacting support, rather than inventing details.`;
 
 async function callGemini(userMessage) {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY not configured");
-  }
-
-  const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system_instruction: {
-        parts: [{ text: BEMSFARMS_SYSTEM_PROMPT }],
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: userMessage }],
-        },
-      ],
-      generationConfig: {
-        maxOutputTokens: 150,
-        temperature: 0.7,
-      },
-    }),
+  return callGeminiRaw(userMessage, {
+    systemInstruction: BEMSFARMS_SYSTEM_PROMPT,
+    maxOutputTokens: 150,
+    temperature: 0.7,
   });
-
-  if (!response.ok) {
-    const errBody = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${errBody}`);
-  }
-
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!text) {
-    throw new Error("Gemini returned no text in response");
-  }
-
-  return text.trim();
 }
 
 router.post("/chat", async (req, res) => {
@@ -478,6 +562,84 @@ router.post("/chat", async (req, res) => {
     }
   } catch (err) {
     console.error("❌ Chat error:", err.message);
+    res.status(500).json({ message: "Error: " + err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// CHEF BEMS — AI KITCHEN CHATBOT
+//
+// Distinct from the general BemsFarms chatbot (/chat) above.
+// This route powers the dedicated Chef Bems kitchen assistant page.
+// It maintains conversation history per request, uses a chef-specific
+// system prompt, and your co-worker's AI automation system will
+// integrate with this same endpoint.
+//
+// The system prompt establishes Chef Bems as a Nigerian culinary expert
+// who knows BemsFarms products and can suggest items from the store.
+// ═══════════════════════════════════════════════════════════════
+
+const CHEF_BEMS_PROMPT = `You are Chef Bems, a warm and knowledgeable Nigerian culinary AI assistant for BemsFarms — an online farm-fresh food marketplace.
+
+Your expertise:
+- Nigerian cuisine: jollof rice, egusi soup, afang, banga, edikaikong, moi moi, akara, suya, pepper soup, ofada stew, and hundreds more
+- West African cooking methods, spice combinations, and ingredient substitutions
+- Nutritional guidance tailored to Nigerian eating habits
+- Dietary advice for common health conditions (diabetes, hypertension, heart health, pregnancy, children)
+- Meal planning using affordable Nigerian staples
+
+BemsFarms sells: rice (Ofada, basmati, parboiled, long-grain), palm oil, groundnut oil, garri, beans (brown, black-eyed, honey, white), tomatoes, crayfish, ugu leaves, cocoyam, onions, peppers, ginger, spinach, carrots, cucumber, and more.
+
+Tone: Warm, encouraging, practical — like a knowledgeable friend who loves cooking. Use Nigerian food terms naturally (iru, uziza, efirin, tatashe, rodo, etc.). Keep responses concise but helpful. When relevant, suggest BemsFarms products the user can order.
+
+Never claim to be human. You are an AI kitchen assistant. If asked something outside cooking/nutrition, gently redirect to food topics.`;
+
+router.post("/chef-chat", async (req, res) => {
+  try {
+    const { message, history = [], cartItems = [] } = req.body;
+
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ message: "message string required" });
+    }
+
+    // Build cart context if user has items in cart
+    const cartContext =
+      cartItems.length > 0
+        ? `\n\n[Context: The user currently has these items in their BemsFarms cart: ${cartItems.join(", ")}. You can reference these in your response if relevant.]`
+        : "";
+
+    // Build full conversation for Gemini multi-turn context
+    const conversationHistory = history
+      .slice(-10) // Keep last 10 messages to avoid token bloat
+      .map((m) => `${m.role === "user" ? "User" : "Chef Bems"}: ${m.content}`)
+      .join("\n");
+
+    const fullPrompt = conversationHistory
+      ? `Previous conversation:\n${conversationHistory}\n\nUser: ${message}${cartContext}`
+      : `${message}${cartContext}`;
+
+    try {
+      const reply = await callGeminiRaw(fullPrompt, {
+        systemInstruction: CHEF_BEMS_PROMPT,
+        maxOutputTokens: 500,
+        temperature: 0.7,
+      });
+
+      return res.json({ reply, source: "gemini" });
+    } catch (geminiErr) {
+      console.warn("⚠️ Chef Bems Gemini failed:", geminiErr.message);
+
+      // Graceful fallback — honest, still helpful
+      const fallbacks = [
+        "I'm having a brief moment away from the kitchen! For now: the key to great Nigerian cooking is always fresh ingredients, the right balance of palm oil, and patience. What dish were you asking about? 🍲",
+        "Taking a quick break! While I'm away: garri, beans, and palm oil are the holy trinity of Nigerian pantry staples. Try to always have them stocked. Ask me again in a moment! 🌾",
+        "Chef Bems is temporarily offline, but here's a tip: egusi soup tastes best when you fry the egusi in palm oil first before adding water. Back shortly! 👨‍🍳",
+      ];
+      const fallback = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+      return res.json({ reply: fallback, source: "fallback" });
+    }
+  } catch (err) {
+    console.error("❌ Chef chat error:", err.message);
     res.status(500).json({ message: "Error: " + err.message });
   }
 });
