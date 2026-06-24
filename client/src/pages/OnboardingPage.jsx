@@ -426,13 +426,12 @@ export default function OnboardingPage() {
         <div className="ob-content" style={{ flex: 1 }}>
           {/* Desktop skip */}
           <div
+            className="ob-topbar"
             style={{
               display: "flex",
               justifyContent: "flex-end",
               marginBottom: "32px",
             }}
-            className="ob-topbar"
-            style={{ display: "none" }}
           >
             <button
               onClick={skip}
