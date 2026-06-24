@@ -40,9 +40,7 @@ const authLimiter = rateLimit({
   max: 50,
   standardHeaders: true,
   legacyHeaders: false,
-  message: {
-    error: "Too many login attempts, please try again after 15 minutes.",
-  },
+  message: { error: "Too many auth attempts, please try again in 15 minutes." },
 });
 
 const aiLimiter = rateLimit({
