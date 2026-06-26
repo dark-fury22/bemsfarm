@@ -9,7 +9,7 @@ const pool = require("../db/pool");
 // meant /recipe-helper couldn't reach them at all.
 // ═══════════════════════════════════════════════════════════════
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-1.5-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Low-level Gemini caller shared by both features below. Each

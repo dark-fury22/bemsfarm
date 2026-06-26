@@ -2,65 +2,74 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "../components/layout/PageWrapper";
 import { useCart } from "../context/CartContext";
-import { useResponsive } from "../hooks/useResponsive";
 import api from "../services/api";
 
-/*
-  ── CHEF BEMS AI KITCHEN CHATBOT ─────────────────────────────────
-  Replaces the old AI Recommendations page.
-  Acts as a personal chef/cook — answers questions about:
-  - Nigerian recipes and cooking methods
-  - Ingredient substitutions
-  - Nutritional advice
-  - What to cook with items in their cart
-  - Dietary guidance (diabetes-friendly, heart health, etc.)
-  - General food/kitchen questions
-  
-  Backend: POST /api/ai/chef-chat (see chef-chat route in ai.js)
-  The chatbot uses the Gemini API with a chef persona system prompt.
-  Your co-worker's AI automation will integrate with the same endpoint.
-*/
+const N8N_WEBHOOK = "https://bemsfarms.app.n8n.cloud/webhook/chef-bems";
 
 const QUICK_PROMPTS = [
   { icon: "🍲", text: "What can I cook with garri and tomatoes?" },
   { icon: "🌾", text: "How do I make perfect Jollof rice?" },
-  { icon: "🥗", text: "Give me a healthy Nigerian meal plan for the week" },
-  { icon: "🩺", text: "What foods are good for managing diabetes?" },
-  { icon: "🔄", text: "What can I substitute for palm oil in egusi soup?" },
-  { icon: "👶", text: "What Nigerian foods are best for toddlers?" },
+  { icon: "🥗", text: "Healthy Nigerian meal plan for the week" },
+  { icon: "🩺", text: "Foods good for managing diabetes?" },
+  { icon: "🔄", text: "Substitute for palm oil in egusi soup?" },
+  { icon: "👶", text: "Best Nigerian foods for toddlers?" },
 ];
 
 const WELCOME_MESSAGE = {
   id: "welcome",
   role: "assistant",
-  content: `Welcome! I'm **Chef Bems** 👨‍🍳 — your personal Nigerian kitchen AI.
-
-I can help you with:
-• Recipes for any Nigerian dish
-• What to cook with ingredients you have
-• Healthy meal planning
-• Nutritional guidance
-• Cooking tips and substitutions
-
-What would you like to cook today?`,
+  content: `Welcome! I'm **Chef Bems** 👨‍🍳 — your personal Nigerian kitchen AI.\n\nI can help you with:\n• Recipes for any Nigerian dish\n• What to cook with ingredients you have\n• Healthy meal planning\n• Nutritional guidance\n• Cooking tips and substitutions\n\nWhat would you like to cook today?`,
   timestamp: new Date(),
 };
+
+const CSS = `
+  .cb-container {
+    max-width: 860px;
+    margin: 0 auto;
+    height: calc(100vh - 56px);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+  }
+  .cb-header {
+    border-radius: 0;
+    padding: 14px 16px;
+  }
+  .cb-header h1 { font-size: 17px; }
+  .cb-prompts { display: none; }
+  .cb-input-area { padding: 10px 12px 12px; }
+
+  @media (min-width: 640px) {
+    .cb-container {
+      padding: 20px 20px 0;
+      height: calc(100vh - 100px);
+    }
+    .cb-header {
+      border-radius: 20px 20px 0 0;
+      padding: 20px 28px;
+    }
+    .cb-header h1 { font-size: 22px; }
+    .cb-prompts { display: flex; }
+    .cb-input-area { padding: 14px 20px 16px; }
+  }
+
+  @media (min-width: 1024px) {
+    .cb-container { padding: 24px 24px 0; }
+  }
+`;
 
 function formatMessage(text) {
   return text
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/\n/g, "<br/>")
-    .replace(/•/g, "•");
+    .replace(/\n/g, "<br/>");
 }
 
 export default function ChefBemsPage() {
-  const { isMobile } = useResponsive();
-  const { cartItems, addToCart } = useCart();
+  const { cartItems } = useCart();
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -68,24 +77,18 @@ export default function ChefBemsPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ── AI ROUTING ────────────────────────────────────────────────
-  // Primary:  n8n webhook (co-worker's AI automation)
-  // Fallback: Express /api/ai/chef-chat (Gemini-powered backend)
-  // If n8n is down or returns an error, automatically falls back.
-  const N8N_WEBHOOK = "https://bemsfarms.app.n8n.cloud/webhook/chef-bems";
-
-  const callN8nWebhook = async (payload) => {
+  const callN8n = async (payload) => {
     const res = await fetch(N8N_WEBHOOK, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(12000), // 12s timeout before fallback
+      signal: AbortSignal.timeout(12000),
     });
-    if (!res.ok) throw new Error(`n8n returned ${res.status}`);
+    if (!res.ok) throw new Error(`n8n ${res.status}`);
     return res.json();
   };
 
-  const callExpressFallback = async (payload) => {
+  const callExpress = async (payload) => {
     const res = await api.post("/ai/chef-chat", {
       message: payload.message,
       history: payload.conversationHistory,
@@ -97,12 +100,10 @@ export default function ChefBemsPage() {
   const sendMessage = async (text) => {
     const userText = (text || input).trim();
     if (!userText || loading) return;
-
     setInput("");
-    setError(null);
 
     const userMsg = {
-      id: Date.now() + "-user",
+      id: Date.now() + "-u",
       role: "user",
       content: userText,
       timestamp: new Date(),
@@ -111,7 +112,6 @@ export default function ChefBemsPage() {
     setLoading(true);
 
     try {
-      // Build conversation history for context
       const history = messages
         .filter((m) => m.id !== "welcome")
         .map((m) => ({ role: m.role, content: m.content }));
@@ -127,42 +127,31 @@ export default function ChefBemsPage() {
         ),
       };
 
-      // Try n8n first, fall back to Express if it fails
       let data;
       try {
-        data = await callN8nWebhook(payload);
-        console.log("✅ Chef Bems: n8n response");
-      } catch (n8nErr) {
-        console.warn(
-          "⚠️ n8n unavailable, using Express fallback:",
-          n8nErr.message,
-        );
-        data = await callExpressFallback(payload);
-        console.log("✅ Chef Bems: Express fallback response");
+        data = await callN8n(payload);
+      } catch {
+        data = await callExpress(payload);
       }
 
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now() + "-chef",
+          id: Date.now() + "-a",
           role: "assistant",
-          content: data.reply || "I didn't catch that. Could you rephrase?",
+          content: data.reply || "I didn't catch that — could you rephrase?",
           timestamp: new Date(),
-          suggestions: data.suggestions || [],
           relatedProducts: data.relatedProducts || [],
         },
       ]);
     } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        "Chef Bems is taking a short break. Try again in a moment.";
-      setError(msg);
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now() + "-err",
+          id: Date.now() + "-e",
           role: "assistant",
-          content: `⚠️ ${msg}`,
+          content:
+            "⚠️ Chef Bems is taking a short break. Try again in a moment.",
           timestamp: new Date(),
           isError: true,
         },
@@ -182,54 +171,45 @@ export default function ChefBemsPage() {
 
   const cartContext =
     cartItems.length > 0
-      ? `(You have ${cartItems.length} item${cartItems.length > 1 ? "s" : ""} in your cart)`
+      ? `(${cartItems.length} item${cartItems.length > 1 ? "s" : ""} in cart)`
       : "";
 
   return (
-    <PageWrapper>
-      <div
-        style={{
-          maxWidth: "900px",
-          margin: "0 auto",
-          padding: isMobile ? "0" : "24px 24px 0",
-          height: isMobile ? "calc(100vh - 64px)" : "calc(100vh - 112px)",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
+    <PageWrapper noFooter>
+      <style>{CSS}</style>
+      <div className="cb-container">
         {/* Header */}
         <div
+          className="cb-header"
           style={{
             background: "linear-gradient(135deg, #1B4332, #2D6A4F)",
-            borderRadius: isMobile ? "0" : "20px 20px 0 0",
-            padding: isMobile ? "16px 20px" : "24px 32px",
             display: "flex",
             alignItems: "center",
-            gap: "16px",
+            gap: "14px",
             flexShrink: 0,
           }}
         >
           <div
             style={{
-              width: "52px",
-              height: "52px",
+              width: "46px",
+              height: "46px",
               borderRadius: "50%",
               background: "linear-gradient(135deg, #F59E0B, #D97706)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "24px",
+              fontSize: "22px",
               flexShrink: 0,
               boxShadow: "0 4px 16px rgba(245,159,11,0.4)",
             }}
           >
             👨‍🍳
           </div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <h1
+              className="cb-header"
               style={{
                 fontFamily: "Syne, sans-serif",
-                fontSize: isMobile ? "18px" : "22px",
                 fontWeight: 800,
                 color: "white",
                 margin: 0,
@@ -241,75 +221,77 @@ export default function ChefBemsPage() {
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <div
                 style={{
-                  width: "7px",
-                  height: "7px",
+                  width: "6px",
+                  height: "6px",
                   borderRadius: "50%",
                   backgroundColor: "#4CAF50",
+                  flexShrink: 0,
                 }}
               />
               <p
                 style={{
                   color: "rgba(255,255,255,0.7)",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   margin: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
-                Your AI Kitchen Assistant {cartContext}
+                AI Kitchen Assistant {cartContext}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Messages area */}
+        {/* Messages */}
         <div
           style={{
             flex: 1,
             overflowY: "auto",
             backgroundColor: "#FAFAF8",
-            padding: "20px",
+            padding: "16px",
             display: "flex",
             flexDirection: "column",
-            gap: "16px",
+            gap: "14px",
           }}
         >
           <AnimatePresence initial={false}>
             {messages.map((msg) => (
               <motion.div
                 key={msg.id}
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.25 }}
+                transition={{ duration: 0.22 }}
                 style={{
                   display: "flex",
                   justifyContent:
                     msg.role === "user" ? "flex-end" : "flex-start",
-                  gap: "10px",
+                  gap: "8px",
                   alignItems: "flex-end",
                 }}
               >
                 {msg.role === "assistant" && (
                   <div
                     style={{
-                      width: "32px",
-                      height: "32px",
+                      width: "30px",
+                      height: "30px",
                       borderRadius: "50%",
                       background: "linear-gradient(135deg, #1B4332, #40916C)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: "14px",
+                      fontSize: "13px",
                       flexShrink: 0,
                     }}
                   >
                     👨‍🍳
                   </div>
                 )}
-
-                <div style={{ maxWidth: "75%", minWidth: 0 }}>
+                <div style={{ maxWidth: "78%", minWidth: 0 }}>
                   <div
                     style={{
-                      padding: "12px 16px",
+                      padding: "10px 14px",
                       borderRadius:
                         msg.role === "user"
                           ? "18px 18px 4px 18px"
@@ -328,8 +310,9 @@ export default function ChefBemsPage() {
                             : "#111827",
                       fontSize: "14px",
                       lineHeight: 1.6,
-                      boxShadow: "0 1px 8px rgba(0,0,0,0.08)",
+                      boxShadow: "0 1px 6px rgba(0,0,0,0.07)",
                       border: msg.isError ? "1px solid #FECACA" : "none",
+                      wordBreak: "break-word",
                     }}
                     dangerouslySetInnerHTML={{
                       __html: formatMessage(msg.content),
@@ -337,9 +320,9 @@ export default function ChefBemsPage() {
                   />
                   <p
                     style={{
-                      fontSize: "11px",
+                      fontSize: "10px",
                       color: "#9CA3AF",
-                      margin: "4px 0 0",
+                      margin: "3px 0 0",
                       textAlign: msg.role === "user" ? "right" : "left",
                     }}
                   >
@@ -349,14 +332,14 @@ export default function ChefBemsPage() {
                     })}
                   </p>
 
-                  {/* Related products from n8n response */}
-                  {msg.relatedProducts && msg.relatedProducts.length > 0 && (
+                  {/* Related products from n8n */}
+                  {msg.relatedProducts?.length > 0 && (
                     <div
                       style={{
                         marginTop: "8px",
                         display: "flex",
                         flexDirection: "column",
-                        gap: "6px",
+                        gap: "5px",
                       }}
                     >
                       <p
@@ -367,24 +350,24 @@ export default function ChefBemsPage() {
                           margin: 0,
                         }}
                       >
-                        🛒 Available in BemsFarms:
+                        🛒 Available on BemsFarms:
                       </p>
                       {msg.relatedProducts.map((p, i) => (
                         <div
                           key={i}
+                          onClick={() =>
+                            (window.location.href = `/product/${p.id}`)
+                          }
                           style={{
                             backgroundColor: "#F0FFF4",
                             border: "1px solid #BBF7D0",
                             borderRadius: "10px",
-                            padding: "8px 12px",
+                            padding: "7px 12px",
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
                             cursor: "pointer",
                           }}
-                          onClick={() =>
-                            (window.location.href = `/product/${p.id}`)
-                          }
                         >
                           <span
                             style={{
@@ -409,18 +392,17 @@ export default function ChefBemsPage() {
                     </div>
                   )}
                 </div>
-
                 {msg.role === "user" && (
                   <div
                     style={{
-                      width: "32px",
-                      height: "32px",
+                      width: "30px",
+                      height: "30px",
                       borderRadius: "50%",
                       backgroundColor: "#F59E0B",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: "14px",
+                      fontSize: "12px",
                       flexShrink: 0,
                       color: "white",
                       fontWeight: 700,
@@ -438,18 +420,18 @@ export default function ChefBemsPage() {
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}
+              style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}
             >
               <div
                 style={{
-                  width: "32px",
-                  height: "32px",
+                  width: "30px",
+                  height: "30px",
                   borderRadius: "50%",
                   background: "linear-gradient(135deg, #1B4332, #40916C)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "14px",
+                  fontSize: "13px",
                   flexShrink: 0,
                 }}
               >
@@ -459,8 +441,8 @@ export default function ChefBemsPage() {
                 style={{
                   backgroundColor: "white",
                   borderRadius: "18px 18px 18px 4px",
-                  padding: "14px 18px",
-                  boxShadow: "0 1px 8px rgba(0,0,0,0.08)",
+                  padding: "12px 16px",
+                  boxShadow: "0 1px 6px rgba(0,0,0,0.07)",
                   display: "flex",
                   gap: "4px",
                   alignItems: "center",
@@ -482,84 +464,83 @@ export default function ChefBemsPage() {
               </div>
             </motion.div>
           )}
-
           <div ref={bottomRef} />
         </div>
 
-        {/* Quick prompts */}
+        {/* Quick prompts — desktop only */}
         {messages.length <= 1 && (
           <div
+            className="cb-prompts"
             style={{
               backgroundColor: "white",
-              padding: "12px 20px",
+              padding: "10px 16px",
               borderTop: "1px solid #F0F0EE",
               flexShrink: 0,
+              flexWrap: "wrap",
+              gap: "7px",
             }}
           >
             <p
               style={{
-                fontSize: "12px",
+                fontSize: "11px",
                 color: "#9CA3AF",
                 fontWeight: 600,
-                marginBottom: "10px",
+                width: "100%",
+                margin: "0 0 6px",
                 textTransform: "uppercase",
                 letterSpacing: "0.5px",
               }}
             >
               Quick questions
             </p>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {QUICK_PROMPTS.map((p) => (
-                <motion.button
-                  key={p.text}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => sendMessage(p.text)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "7px 14px",
-                    borderRadius: "50px",
-                    border: "1px solid #E5E7EB",
-                    backgroundColor: "#F8FAFB",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    fontWeight: 500,
-                    color: "#4B5563",
-                    fontFamily: "Nunito, sans-serif",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  <span>{p.icon}</span>
-                  {p.text.slice(0, 30)}
-                  {p.text.length > 30 ? "…" : ""}
-                </motion.button>
-              ))}
-            </div>
+            {QUICK_PROMPTS.map((p) => (
+              <motion.button
+                key={p.text}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => sendMessage(p.text)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 13px",
+                  borderRadius: "50px",
+                  border: "1px solid #E5E7EB",
+                  backgroundColor: "#F8FAFB",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  color: "#4B5563",
+                  fontFamily: "Nunito, sans-serif",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span>{p.icon}</span>
+                {p.text.length > 28 ? p.text.slice(0, 28) + "…" : p.text}
+              </motion.button>
+            ))}
           </div>
         )}
 
         {/* Input */}
         <div
+          className="cb-input-area"
           style={{
             backgroundColor: "white",
-            padding: "16px 20px",
             borderTop: "1px solid #F0F0EE",
-            borderRadius: isMobile ? "0" : "0 0 20px 20px",
             flexShrink: 0,
-            boxShadow: "0 -2px 12px rgba(0,0,0,0.04)",
+            boxShadow: "0 -2px 10px rgba(0,0,0,0.04)",
           }}
         >
           <div
             style={{
               display: "flex",
-              gap: "10px",
+              gap: "8px",
               alignItems: "flex-end",
               backgroundColor: "#F8FAFB",
-              borderRadius: "16px",
+              borderRadius: "14px",
               border: "1.5px solid #E5E7EB",
-              padding: "8px 8px 8px 16px",
+              padding: "7px 7px 7px 14px",
             }}
           >
             <textarea
@@ -579,7 +560,7 @@ export default function ChefBemsPage() {
                 fontFamily: "Nunito, sans-serif",
                 resize: "none",
                 lineHeight: 1.5,
-                maxHeight: "120px",
+                maxHeight: "100px",
                 overflow: "auto",
                 color: "#111827",
               }}
@@ -590,9 +571,9 @@ export default function ChefBemsPage() {
               onClick={() => sendMessage()}
               disabled={!input.trim() || loading}
               style={{
-                width: "40px",
-                height: "40px",
-                borderRadius: "12px",
+                width: "38px",
+                height: "38px",
+                borderRadius: "10px",
                 backgroundColor:
                   input.trim() && !loading ? "#1B4332" : "#E5E7EB",
                 border: "none",
@@ -600,7 +581,7 @@ export default function ChefBemsPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "18px",
+                fontSize: "16px",
                 flexShrink: 0,
                 transition: "all 0.2s",
               }}
@@ -611,12 +592,12 @@ export default function ChefBemsPage() {
           <p
             style={{
               textAlign: "center",
-              fontSize: "11px",
+              fontSize: "10px",
               color: "#D1D5DB",
-              marginTop: "8px",
+              marginTop: "6px",
             }}
           >
-            Press Enter to send · Shift+Enter for new line
+            Enter to send · Shift+Enter for new line
           </p>
         </div>
       </div>
