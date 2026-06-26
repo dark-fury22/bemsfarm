@@ -68,6 +68,32 @@ export default function ChefBemsPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ── AI ROUTING ────────────────────────────────────────────────
+  // Primary:  n8n webhook (co-worker's AI automation)
+  // Fallback: Express /api/ai/chef-chat (Gemini-powered backend)
+  // If n8n is down or returns an error, automatically falls back.
+  const N8N_WEBHOOK = "https://bemsfarms.app.n8n.cloud/webhook/chef-bems";
+
+  const callN8nWebhook = async (payload) => {
+    const res = await fetch(N8N_WEBHOOK, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(12000), // 12s timeout before fallback
+    });
+    if (!res.ok) throw new Error(`n8n returned ${res.status}`);
+    return res.json();
+  };
+
+  const callExpressFallback = async (payload) => {
+    const res = await api.post("/ai/chef-chat", {
+      message: payload.message,
+      history: payload.conversationHistory,
+      cartItems: payload.cartItems,
+    });
+    return res.data;
+  };
+
   const sendMessage = async (text) => {
     const userText = (text || input).trim();
     if (!userText || loading) return;
@@ -90,22 +116,40 @@ export default function ChefBemsPage() {
         .filter((m) => m.id !== "welcome")
         .map((m) => ({ role: m.role, content: m.content }));
 
-      const res = await api.post("/ai/chef-chat", {
+      const payload = {
         message: userText,
-        history,
+        conversationHistory: history,
         cartItems: cartItems
           .map((i) => i.product?.name || i.name)
           .filter(Boolean),
-      });
+        userPreferences: JSON.parse(
+          localStorage.getItem("bemsfarms_prefs") || "{}",
+        ),
+      };
+
+      // Try n8n first, fall back to Express if it fails
+      let data;
+      try {
+        data = await callN8nWebhook(payload);
+        console.log("✅ Chef Bems: n8n response");
+      } catch (n8nErr) {
+        console.warn(
+          "⚠️ n8n unavailable, using Express fallback:",
+          n8nErr.message,
+        );
+        data = await callExpressFallback(payload);
+        console.log("✅ Chef Bems: Express fallback response");
+      }
 
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + "-chef",
           role: "assistant",
-          content: res.data.reply || "I didn't catch that. Could you rephrase?",
+          content: data.reply || "I didn't catch that. Could you rephrase?",
           timestamp: new Date(),
-          suggestions: res.data.suggestions || [],
+          suggestions: data.suggestions || [],
+          relatedProducts: data.relatedProducts || [],
         },
       ]);
     } catch (err) {
@@ -304,6 +348,66 @@ export default function ChefBemsPage() {
                       minute: "2-digit",
                     })}
                   </p>
+
+                  {/* Related products from n8n response */}
+                  {msg.relatedProducts && msg.relatedProducts.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: "11px",
+                          color: "#9CA3AF",
+                          fontWeight: 600,
+                          margin: 0,
+                        }}
+                      >
+                        🛒 Available in BemsFarms:
+                      </p>
+                      {msg.relatedProducts.map((p, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            backgroundColor: "#F0FFF4",
+                            border: "1px solid #BBF7D0",
+                            borderRadius: "10px",
+                            padding: "8px 12px",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            cursor: "pointer",
+                          }}
+                          onClick={() =>
+                            (window.location.href = `/product/${p.id}`)
+                          }
+                        >
+                          <span
+                            style={{
+                              fontSize: "13px",
+                              fontWeight: 600,
+                              color: "#1B4332",
+                            }}
+                          >
+                            {p.name}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "13px",
+                              fontWeight: 700,
+                              color: "#F59E0B",
+                            }}
+                          >
+                            ₦{Number(p.price).toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {msg.role === "user" && (

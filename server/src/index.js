@@ -9,9 +9,9 @@ app.set("trust proxy", 1);
 app.use(
   cors({
     origin: [
-      "https://yourdomain.com",
       "https://www.bemsfarms.com",
       "https://bemsfarm.vercel.app",
+      "https://localhost:65476",
       "http://localhost:5173",
       "http://localhost:3000",
       process.env.FRONTEND_URL,
