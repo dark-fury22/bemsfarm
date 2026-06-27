@@ -7,8 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 
-const CHEF_AVATAR =
-  "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=48&q=80";
+const CHEF_AVATAR = null; // Using emoji avatar instead — sharp at all sizes
 const N8N_WEBHOOK = "https://bemsfarms.app.n8n.cloud/webhook/chef-bems";
 
 const QUICK_QUESTIONS = [
@@ -230,11 +229,19 @@ export default function AIChatbot() {
           boxShadow: "0 8px 28px rgba(27,67,50,0.35)",
         }}
       >
-        <img
-          src={CHEF_AVATAR}
-          alt="Chef Bems"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            background: "linear-gradient(135deg, #1B4332, #40916C)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "26px",
+          }}
+        >
+          👨‍🍳
+        </div>
         {unread > 0 && !open && (
           <motion.span
             initial={{ scale: 0 }}
@@ -306,11 +313,19 @@ export default function AIChatbot() {
                   flexShrink: 0,
                 }}
               >
-                <img
-                  src={CHEF_AVATAR}
-                  alt="Chef Bems"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    background: "linear-gradient(135deg, #1B4332, #40916C)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px",
+                  }}
+                >
+                  👨‍🍳
+                </div>
               </div>
               <div style={{ flex: 1 }}>
                 <div
@@ -381,15 +396,20 @@ export default function AIChatbot() {
                         flexShrink: 0,
                       }}
                     >
-                      <img
-                        src={CHEF_AVATAR}
-                        alt=""
+                      <div
                         style={{
                           width: "100%",
                           height: "100%",
-                          objectFit: "cover",
+                          background:
+                            "linear-gradient(135deg, #1B4332, #40916C)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "14px",
                         }}
-                      />
+                      >
+                        👨‍🍳
+                      </div>
                     </div>
                   )}
                   <div
@@ -429,15 +449,19 @@ export default function AIChatbot() {
                       flexShrink: 0,
                     }}
                   >
-                    <img
-                      src={CHEF_AVATAR}
-                      alt=""
+                    <div
                       style={{
                         width: "100%",
                         height: "100%",
-                        objectFit: "cover",
+                        background: "linear-gradient(135deg, #1B4332, #40916C)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "14px",
                       }}
-                    />
+                    >
+                      👨‍🍳
+                    </div>
                   </div>
                   <div
                     style={{

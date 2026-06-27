@@ -1,21 +1,58 @@
-const nodemailer = require("nodemailer");
+// services/emailService.js
+// ─────────────────────────────────────────────────────────────────────────────
+// Uses Resend (https://resend.com) — HTTP API, not SMTP.
+// Render cannot block this. Free tier: 3,000 emails/month.
+//
+// SETUP (5 minutes):
+// 1. Go to https://resend.com and create a free account
+// 2. Go to API Keys → Create API Key → copy it
+// 3. Go to Domains → Add Domain → add bemsfarms.com (or use onboarding@resend.dev for testing)
+// 4. Add to Render environment variables:
+//      RESEND_API_KEY = re_xxxxxxxxxxxx
+//      EMAIL_FROM     = noreply@bemsfarms.com  (or onboarding@resend.dev for testing)
+// ─────────────────────────────────────────────────────────────────────────────
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER, // your Gmail
-    pass: process.env.EMAIL_PASS, // Gmail App Password (not regular password)
-  },
-});
+const { Resend } = require("resend");
 
-// ── Email Templates ──────────────────────────────────────────
+const IS_TEST = !process.env.RESEND_API_KEY;
+const resend = IS_TEST ? null : new Resend(process.env.RESEND_API_KEY);
+const FROM = process.env.EMAIL_FROM || "onboarding@resend.dev";
 
-const emailStyles = `
-  font-family: 'Segoe UI', sans-serif;
-  max-width: 600px;
-  margin: 0 auto;
-  background: #ffffff;
-`;
+if (IS_TEST) {
+  console.log(
+    "⚠️  Email in TEST MODE — RESEND_API_KEY not set. Emails will be logged only.",
+  );
+} else {
+  console.log(`✅ Resend email ready — sending from: ${FROM}`);
+}
+
+// ── Core send helper ──────────────────────────────────────────────────────────
+async function sendMail({ to, subject, html }) {
+  if (IS_TEST) {
+    console.log(`📧 [EMAIL TEST] To: ${to} | Subject: ${subject}`);
+    return { status: "test" };
+  }
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `BemsFarms 🌿 <${FROM}>`,
+      to,
+      subject,
+      html,
+    });
+    if (error) {
+      console.error(`❌ Resend error to ${to}:`, error);
+      return { status: "failed", error };
+    }
+    console.log(`✅ Email sent to ${to} — ID: ${data.id}`);
+    return { status: "sent", id: data.id };
+  } catch (err) {
+    console.error(`❌ Email failed to ${to}:`, err.message);
+    return { status: "failed", error: err.message };
+  }
+}
+
+// ── Shared styles ─────────────────────────────────────────────────────────────
+const emailStyles = `font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;`;
 
 const header = (title) => `
   <div style="background: linear-gradient(135deg, #1B4332, #40916C); padding: 32px 40px; border-radius: 16px 16px 0 0; text-align: center;">
@@ -36,17 +73,18 @@ const footer = `
   </div>
 `;
 
-// ── Send Functions ────────────────────────────────────────────
+// ── Email functions ───────────────────────────────────────────────────────────
 
 async function sendWelcomeEmail(user, verifyUrl) {
-  await transporter.sendMail({
+  return sendMail({
     to: user.email,
     subject: "🌿 Welcome to BemsFarms — Verify Your Email",
     html: `<div style="${emailStyles}">
       ${header(`Welcome, ${user.name}! 👋`)}
       <p style="color: #4B5563; line-height: 1.7;">
         Thank you for joining BemsFarms — Nigeria's freshest farm marketplace.
-        Please verify your email to get started and claim your <strong style="color: #F59E0B;">10% welcome discount</strong>.
+        Please verify your email to get started and claim your
+        <strong style="color: #F59E0B;">10% welcome discount</strong>.
       </p>
       <div style="text-align: center; margin: 24px 0;">
         <a href="${verifyUrl}" style="background: #40916C; color: white; padding: 14px 32px;
@@ -66,13 +104,15 @@ async function sendOrderConfirmationEmail(order, user, items) {
     <tr>
       <td style="padding: 10px 0; border-bottom: 1px solid #F3F4F6; color: #4B5563;">${item.name}</td>
       <td style="padding: 10px 0; border-bottom: 1px solid #F3F4F6; text-align: center; color: #4B5563;">${item.quantity}</td>
-      <td style="padding: 10px 0; border-bottom: 1px solid #F3F4F6; text-align: right; font-weight: 700; color: #1B4332;">₦${(item.price * 1500 * item.quantity).toLocaleString()}</td>
+      <td style="padding: 10px 0; border-bottom: 1px solid #F3F4F6; text-align: right; font-weight: 700; color: #1B4332;">
+        ₦${(item.price * item.quantity).toLocaleString()}
+      </td>
     </tr>
   `,
     )
     .join("");
 
-  await transporter.sendMail({
+  return sendMail({
     to: user.email,
     subject: `✅ Order #${order.id} Confirmed — BemsFarms`,
     html: `<div style="${emailStyles}">
@@ -90,14 +130,20 @@ async function sendOrderConfirmationEmail(order, user, items) {
         <tfoot>
           <tr>
             <td colspan="2" style="padding: 14px 0; font-weight: 800; color: #1B4332; font-size: 16px;">Total</td>
-            <td style="padding: 14px 0; text-align: right; font-weight: 800; color: #1B4332; font-size: 18px;">₦${parseFloat(order.total).toLocaleString()}</td>
+            <td style="padding: 14px 0; text-align: right; font-weight: 800; color: #1B4332; font-size: 18px;">
+              ₦${parseFloat(order.total).toLocaleString()}
+            </td>
           </tr>
         </tfoot>
       </table>
       <div style="background: #F0FFF4; border-left: 4px solid #40916C; padding: 14px 16px; border-radius: 8px; margin: 16px 0;">
-        <p style="margin: 0; color: #1B4332; font-weight: 600; font-size: 14px;">📍 Delivering to: ${order.address || "Your saved address"}</p>
+        <p style="margin: 0; color: #1B4332; font-weight: 600; font-size: 14px;">
+          📍 Delivering to: ${order.address || "Your saved address"}
+        </p>
       </div>
-      <p style="color: #9CA3AF; font-size: 13px;">Estimated delivery: <strong>2-4 hours</strong> (Lagos) or <strong>1-3 days</strong> (other states)</p>
+      <p style="color: #9CA3AF; font-size: 13px;">
+        Estimated delivery: <strong>2-4 hours</strong> (Lagos) or <strong>1-3 days</strong> (other states)
+      </p>
       ${footer}
     </div>`,
   });
@@ -137,7 +183,7 @@ async function sendOrderStatusEmail(order, user, newStatus) {
     msg: "Your order status has been updated.",
   };
 
-  await transporter.sendMail({
+  return sendMail({
     to: user.email,
     subject: `${s.emoji} Order #${order.id} — ${s.title}`,
     html: `<div style="${emailStyles}">
@@ -153,7 +199,7 @@ async function sendOrderStatusEmail(order, user, newStatus) {
 }
 
 async function sendSubscriptionWelcomeEmail(email) {
-  await transporter.sendMail({
+  return sendMail({
     to: email,
     subject: "🌿 You're subscribed to BemsFarms — Here's your 10% off",
     html: `<div style="${emailStyles}">
@@ -172,12 +218,14 @@ async function sendSubscriptionWelcomeEmail(email) {
 }
 
 async function sendPasswordResetEmail(user, resetUrl) {
-  await transporter.sendMail({
+  return sendMail({
     to: user.email,
     subject: "🔐 Reset Your BemsFarms Password",
     html: `<div style="${emailStyles}">
       ${header("Password Reset Request")}
-      <p style="color: #4B5563;">Someone requested a password reset for your BemsFarms account. If this wasn't you, ignore this email.</p>
+      <p style="color: #4B5563;">
+        Someone requested a password reset for your BemsFarms account. If this wasn't you, ignore this email.
+      </p>
       <div style="text-align: center; margin: 24px 0;">
         <a href="${resetUrl}" style="background: #1B4332; color: white; padding: 14px 32px;
           border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px;
