@@ -9,18 +9,23 @@ app.set("trust proxy", 1);
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
       const allowed = [
         "https://www.bemsfarms.com",
         "https://bemsfarms.com",
         "https://bemsfarm.vercel.app",
+        // Henry's admin frontend — update these to match his actual deployment URL
+        "https://bems-admin.vercel.app",
+        "https://admin.bemsfarms.com",
+        // Local dev
         "http://localhost:5173",
+        "http://localhost:5174", // Henry's local dev (Vite uses next port if 5173 is taken)
         "http://localhost:3000",
+        "http://localhost:4173",
         process.env.FRONTEND_URL,
+        process.env.ADMIN_URL, // add ADMIN_URL to Render env vars once Henry deploys
       ].filter(Boolean);
       if (allowed.includes(origin)) return callback(null, true);
-      // Log blocked origins so you can see them in Render logs
       console.warn(`🚫 CORS blocked origin: ${origin}`);
       callback(new Error(`CORS: origin ${origin} not allowed`));
     },
@@ -78,6 +83,7 @@ const aiRoutes = require("./routes/ai");
 const miscRoutes = require("./routes/misc");
 const advancedAiRoutes = require("./routes/advanced-ai");
 const zohoRoutes = require("./routes/zoho");
+const dashboardRoutes = require("./routes/dashboard");
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/orders", paymentLimiter, ordersRoutes);
@@ -85,6 +91,7 @@ app.use("/api/products", productsRoutes);
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/ai", aiLimiter, aiRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api", miscRoutes);
 app.use("/api/advanced-ai", aiLimiter, advancedAiRoutes);
 app.use("/api/zoho", zohoRoutes);
@@ -94,6 +101,5 @@ app.get("/test", (req, res) => res.json({ message: "server works" }));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-console.log("productsRoutes loaded");
 
 module.exports = app;

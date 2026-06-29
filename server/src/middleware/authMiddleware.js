@@ -4,16 +4,15 @@ const pool = require("../db/pool");
 const JWT_SECRET =
   process.env.JWT_SECRET || "frutella_super_secret_key_change_in_production";
 
+// ── protect ───────────────────────────────────────────────────────
+// Validates JWT and attaches req.user
 const protect = async (req, res, next) => {
   try {
     let token;
 
-    // 1. Check Authorization header (Bearer token)
     if (req.headers.authorization?.startsWith("Bearer ")) {
       token = req.headers.authorization.split(" ")[1];
-    }
-    // 2. Fallback: check cookie
-    else if (req.cookies?.token) {
+    } else if (req.cookies?.token) {
       token = req.cookies.token;
     }
 
@@ -23,7 +22,6 @@ const protect = async (req, res, next) => {
         .json({ message: "Not authorized — no token provided" });
     }
 
-    // Verify token
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
@@ -36,14 +34,17 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: "Invalid token" });
     }
 
-    // Get user from DB
     const result = await pool.query(
-      "SELECT id, name, email, role FROM users WHERE id = $1",
+      "SELECT id, name, email, role, status FROM users WHERE id = $1",
       [decoded.id],
     );
 
     if (!result.rows.length) {
       return res.status(401).json({ message: "User not found" });
+    }
+
+    if (result.rows[0].status === "suspended") {
+      return res.status(403).json({ message: "Account suspended" });
     }
 
     req.user = result.rows[0];
@@ -54,12 +55,39 @@ const protect = async (req, res, next) => {
   }
 };
 
-// Admin only
+// ── requireRole ───────────────────────────────────────────────────
+// Usage: router.get('/route', protect, requireRole('superadmin','manager'), handler)
+const requireRole =
+  (...roles) =>
+  (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: `Access denied. Required role: ${roles.join(" or ")}`,
+      });
+    }
+    next();
+  };
+
+// ── adminOnly ─────────────────────────────────────────────────────
+// Legacy — kept for backward compat with existing routes
+// Allows: superadmin, admin, manager
 const adminOnly = (req, res, next) => {
-  if (req.user?.role !== "admin") {
+  const allowed = ["superadmin", "admin", "manager"];
+  if (!allowed.includes(req.user?.role)) {
     return res.status(403).json({ message: "Admin access required" });
   }
   next();
 };
 
-module.exports = { protect, adminOnly };
+// ── superadminOnly ────────────────────────────────────────────────
+const superadminOnly = (req, res, next) => {
+  if (req.user?.role !== "superadmin") {
+    return res.status(403).json({ message: "Superadmin access required" });
+  }
+  next();
+};
+
+module.exports = { protect, requireRole, adminOnly, superadminOnly };
