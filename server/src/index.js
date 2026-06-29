@@ -84,6 +84,7 @@ const miscRoutes = require("./routes/misc");
 const advancedAiRoutes = require("./routes/advanced-ai");
 const zohoRoutes = require("./routes/zoho");
 const dashboardRoutes = require("./routes/dashboard");
+const productsAdminRoutes = require("./routes/products_admin");
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/orders", paymentLimiter, ordersRoutes);
@@ -92,6 +93,7 @@ app.use("/api/categories", categoriesRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/ai", aiLimiter, aiRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/admin/products", productsAdminRoutes);
 app.use("/api", miscRoutes);
 app.use("/api/advanced-ai", aiLimiter, advancedAiRoutes);
 app.use("/api/zoho", zohoRoutes);
